@@ -28,9 +28,18 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Debug npm context
+        working-directory: frontend
+        run: |
+          node --version
+          npm --version
+          npm config list --workspaces=false
+          node -e "const pkg=require('./package.json'); console.log(JSON.stringify({name:pkg.name, version:pkg.version, dependencies:pkg.dependencies, devDependencies:pkg.devDependencies}, null, 2));"
+          node -e "const pkg=require('./package.json'); const lock=require('./package-lock.json'); if (pkg.name !== lock.name || pkg.version !== lock.version) throw new Error('package-lock mismatch: '+lock.name+'@'+lock.version+' != '+pkg.name+'@'+pkg.version); if (lock.packages[''].workspaces) throw new Error('frontend/package-lock.json unexpectedly contains workspaces'); const workspaceEntries=Object.keys(lock.packages).filter((k)=>k==='frontend'||k==='worker'); if (workspaceEntries.length) throw new Error('frontend/package-lock.json contains workspace entries: '+workspaceEntries.join(',')); console.log('frontend lockfile matches package.json and has no workspaces');"
+
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund --verbose --workspaces=false
 
       - name: Build frontend
         working-directory: frontend
@@ -38,7 +47,7 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
-        run: npm run build
+        run: npm run build --workspaces=false
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
