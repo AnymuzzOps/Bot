@@ -7,7 +7,7 @@
     "enabled": true
   },
   "vars": {
-    "ALLOWED_ORIGINS": "http://localhost:5173,https://TU_USUARIO.github.io",
-    "GROQ_MODEL": "llama-3.3-70b-versatile"
+    "ALLOWED_ORIGINS": "http://localhost:5173,https://anymuzzops.github.io",
+    "GROQ_MODEL": "openai/gpt-oss-120b"
   }
 }
