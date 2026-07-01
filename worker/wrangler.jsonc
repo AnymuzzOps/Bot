@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "asistente-personal-ia-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "ALLOWED_ORIGINS": "http://localhost:5173,https://TU_USUARIO.github.io",
+    "GROQ_MODEL": "llama-3.3-70b-versatile"
+  }
+}
