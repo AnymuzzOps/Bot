@@ -13,7 +13,7 @@
     }
   ],
   "vars": {
-    "ALLOWED_ORIGINS": "http://localhost:5173,https://anymuzzops.github.io,https://elchilometro.online",
+    "ALLOWED_ORIGINS": "http://localhost:5173,https://anymuzzops.github.io,https://elchilometro.online,https://www.elchilometro.online",
     "GROQ_MODEL": "openai/gpt-oss-120b"
   }
 }
