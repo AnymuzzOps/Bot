@@ -63,7 +63,13 @@ app.route('/api', backupRoutes)
 app.notFound((c) => c.json({ error: 'Ruta no encontrada.' }, 404))
 
 app.onError((error, c) => {
-  console.error(error)
+  console.error('Worker request error', {
+    method: c.req.method,
+    pathname: new URL(c.req.url).pathname,
+    name: error instanceof Error ? error.name : typeof error,
+    message: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : undefined,
+  })
 
   if (error instanceof HttpError) {
     return c.json({ error: error.message, details: error.details }, error.status as 400)
