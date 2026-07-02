@@ -6,16 +6,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: gh-pages
+  cancel-in-progress: false
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -27,15 +25,6 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-
-      - name: Debug npm context
-        working-directory: frontend
-        run: |
-          node --version
-          npm --version
-          npm config list --workspaces=false
-          node -e "const pkg=require('./package.json'); console.log(JSON.stringify({name:pkg.name, version:pkg.version, dependencies:pkg.dependencies, devDependencies:pkg.devDependencies}, null, 2));"
-          node -e "const pkg=require('./package.json'); const lock=require('./package-lock.json'); if (pkg.name !== lock.name || pkg.version !== lock.version) throw new Error('package-lock mismatch: '+lock.name+'@'+lock.version+' != '+pkg.name+'@'+pkg.version); if (lock.packages[''].workspaces) throw new Error('frontend/package-lock.json unexpectedly contains workspaces'); const workspaceEntries=Object.keys(lock.packages).filter((k)=>k==='frontend'||k==='worker'); if (workspaceEntries.length) throw new Error('frontend/package-lock.json contains workspace entries: '+workspaceEntries.join(',')); console.log('frontend lockfile matches package.json and has no workspaces');"
 
       - name: Install dependencies
         working-directory: frontend
@@ -49,21 +38,12 @@ jobs:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
         run: npm run build --workspaces=false
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
+      - name: Add nojekyll marker
+        run: touch frontend/dist/.nojekyll
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: frontend/dist
-
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./frontend/dist
