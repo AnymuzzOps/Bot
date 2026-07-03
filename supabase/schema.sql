@@ -159,6 +159,13 @@ begin
   insert into public.users (id, email, full_name)
   values (new.id, coalesce(new.email, ''), coalesce(new.raw_user_meta_data ->> 'full_name', ''))
   on conflict (id) do nothing;
+
+  insert into public.household_members (user_id, name, slug)
+  values
+    (new.id, 'Benjamín', 'benjamin'),
+    (new.id, 'Javiera', 'javiera')
+  on conflict (user_id, slug) do nothing;
+
   return new;
 end;
 $$;

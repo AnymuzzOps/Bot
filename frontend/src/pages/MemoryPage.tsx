@@ -3,6 +3,7 @@ import { Brain, Edit3, Plus, Search, Star, Trash2 } from 'lucide-react'
 import { api, apiData } from '../lib/api'
 import type { Memory } from '../lib/types'
 import { useToast } from '../context/ToastContext'
+import { useActiveMember } from '../context/ActiveMemberContext'
 import { Modal } from '../components/Modal'
 import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
@@ -18,6 +19,7 @@ export function MemoryPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const { showToast } = useToast()
+  const { activeMember } = useActiveMember()
 
   useEffect(() => {
     apiData<Memory[]>('/api/memories?limit=200').then(setItems).catch((caught) => showToast(caught instanceof Error ? caught.message : 'No fue posible cargar la memoria.', 'error')).finally(() => setLoading(false))
