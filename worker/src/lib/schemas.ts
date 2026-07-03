@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 const optionalText = z.string().trim().max(2000).optional().nullable()
 const dateOrDateTime = z.string().trim().max(40).optional().nullable()
+const assignedMemberId = z.string().uuid().optional().nullable()
 
 export const taskCreateSchema = z.object({
   title: z.string().trim().min(1).max(240),
@@ -9,6 +10,7 @@ export const taskCreateSchema = z.object({
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
   due_date: dateOrDateTime,
   status: z.enum(['pending', 'completed']).default('pending'),
+  assigned_to_member_id: assignedMemberId,
 })
 
 export const taskUpdateSchema = taskCreateSchema.partial()
@@ -51,6 +53,7 @@ export const memoryCreateSchema = z.object({
   value: z.string().trim().min(1).max(4000),
   category: z.string().trim().max(100).default('general'),
   importance: z.coerce.number().int().min(1).max(5).default(3),
+  scope: z.enum(['shared', 'personal']).default('shared'),
 })
 
 export const memoryUpdateSchema = memoryCreateSchema.partial()

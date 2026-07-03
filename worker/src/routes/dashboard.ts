@@ -2,22 +2,22 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../types'
 import { daysFromNowISO, monthBounds } from '../lib/dates'
 import { assertNoDbError } from '../lib/errors'
+import { requireCurrentMembership } from '../lib/household'
 
 export const dashboardRoutes = new Hono<AppEnv>()
 
 dashboardRoutes.get('/', async (c) => {
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, user, householdId } = await requireCurrentMembership(c)
   const { start, end, month } = monthBounds()
 
   const [profile, tasks, shopping, inventory, finances, allFinances, activity] = await Promise.all([
     supabase.from('users').select('*').eq('id', user.id).maybeSingle(),
-    supabase.from('tasks').select('*').eq('user_id', user.id).eq('status', 'pending').order('due_date', { ascending: true, nullsFirst: false }).limit(6),
-    supabase.from('shopping_items').select('*').eq('user_id', user.id).eq('purchased', false).order('created_at', { ascending: false }).limit(6),
-    supabase.from('inventory').select('*').eq('user_id', user.id).not('expiration_date', 'is', null).lte('expiration_date', daysFromNowISO(14)).order('expiration_date', { ascending: true }).limit(6),
-    supabase.from('finances').select('type,amount').eq('user_id', user.id).gte('transaction_date', start).lt('transaction_date', end),
-    supabase.from('finances').select('type,amount').eq('user_id', user.id),
-    supabase.from('conversations').select('id,role,content,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5),
+    supabase.from('tasks').select('*').eq('household_id', householdId).eq('status', 'pending').order('due_date', { ascending: true, nullsFirst: false }).limit(6),
+    supabase.from('shopping_items').select('*').eq('household_id', householdId).eq('purchased', false).order('created_at', { ascending: false }).limit(6),
+    supabase.from('inventory').select('*').eq('household_id', householdId).not('expiration_date', 'is', null).lte('expiration_date', daysFromNowISO(14)).order('expiration_date', { ascending: true }).limit(6),
+    supabase.from('finances').select('type,amount').eq('household_id', householdId).gte('transaction_date', start).lt('transaction_date', end),
+    supabase.from('finances').select('type,amount').eq('household_id', householdId),
+    supabase.from('conversations').select('id,role,content,created_at').eq('household_id', householdId).order('created_at', { ascending: false }).limit(5),
   ])
 
   for (const result of [profile, tasks, shopping, inventory, finances, allFinances, activity]) assertNoDbError(result.error)
