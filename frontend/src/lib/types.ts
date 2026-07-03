@@ -1,5 +1,26 @@
 export type View = 'dashboard' | 'chat' | 'tasks' | 'shopping' | 'inventory' | 'finances' | 'memory' | 'settings'
 
+export type Household = {
+  id: string
+  name: string
+}
+
+export type HouseholdMember = {
+  id: string
+  household_id?: string
+  auth_user_id?: string
+  name: string
+  slug: string
+  role?: 'owner' | 'member'
+  avatar: string | null
+  created_at?: string
+}
+
+export type HouseholdMe = {
+  household: Household
+  member: Pick<HouseholdMember, 'id' | 'name' | 'slug' | 'role' | 'avatar'>
+}
+
 export type Profile = {
   id: string
   email: string
@@ -18,6 +39,8 @@ export type Task = {
   due_date: string | null
   completed_at: string | null
   created_at: string
+  created_by_member_id: string | null
+  created_by_member?: HouseholdMember | null
 }
 
 export type ShoppingItem = {
@@ -28,6 +51,8 @@ export type ShoppingItem = {
   category: string
   purchased: boolean
   created_at: string
+  created_by_member_id: string | null
+  created_by_member?: HouseholdMember | null
 }
 
 export type InventoryItem = {
@@ -41,6 +66,8 @@ export type InventoryItem = {
   category: string
   notes: string | null
   created_at: string
+  created_by_member_id: string | null
+  created_by_member?: HouseholdMember | null
 }
 
 export type Finance = {
@@ -51,6 +78,8 @@ export type Finance = {
   description: string | null
   transaction_date: string
   created_at: string
+  created_by_member_id: string | null
+  created_by_member?: HouseholdMember | null
 }
 
 export type Memory = {
@@ -61,6 +90,10 @@ export type Memory = {
   importance: number
   created_at: string
   updated_at: string
+  scope: 'shared' | 'personal'
+  member_id: string | null
+  created_by_member_id: string | null
+  created_by_member?: HouseholdMember | null
 }
 
 export type Conversation = {
@@ -69,6 +102,8 @@ export type Conversation = {
   content: string
   metadata?: Record<string, unknown>
   created_at: string
+  created_by_member_id: string | null
+  created_by_member?: HouseholdMember | null
 }
 
 export type DashboardData = {

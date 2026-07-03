@@ -6,6 +6,7 @@ import { HttpError, assertNoDbError } from '../lib/errors'
 import { localDateISO } from '../lib/dates'
 import { assistantTools, executeAssistantTool } from '../services/tools'
 import { loadAssistantContext } from '../services/context'
+import { requireCurrentMembership } from '../lib/household'
 
 const chatSchema = z.object({
   message: z.string().trim().min(1).max(8000),
@@ -15,15 +16,14 @@ export const chatRoutes = new Hono<AppEnv>()
 
 chatRoutes.post('/', async (c) => {
   const { message } = chatSchema.parse(await c.req.json())
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, user, household, householdId, member, memberId } = await requireCurrentMembership(c)
 
   const [context, historyResult] = await Promise.all([
-    loadAssistantContext(supabase, user.id),
+    loadAssistantContext(supabase, user.id, householdId, memberId),
     supabase
       .from('conversations')
       .select('role,content')
-      .eq('user_id', user.id)
+      .eq('household_id', householdId)
       .in('role', ['user', 'assistant'])
       .order('created_at', { ascending: false })
       .limit(16),
@@ -36,9 +36,9 @@ chatRoutes.post('/', async (c) => {
   const name = context.profile.full_name || 'la persona usuaria'
 
   const systemPrompt = `Eres un asistente personal inteligente, confiable y breve. Responde en español natural.
-Fecha local actual: ${today}. Zona horaria: ${timezone}. Moneda: ${currency}. Nombre: ${name}.
+Fecha local actual: ${today}. Zona horaria: ${timezone}. Moneda: ${currency}. Cuenta autenticada: ${name}. Hogar compartido: ${household.name}. Persona autenticada: ${member.name}.
 
-Puedes conversar y también ejecutar herramientas para administrar tareas, compras, inventario, finanzas y memoria.
+Puedes conversar y también ejecutar herramientas para administrar tareas, compras, inventario, finanzas y memoria. Los datos operativos son compartidos por los integrantes del hogar. Las memorias shared son del hogar; las memorias personal pertenecen solo a la persona autenticada y nunca debes revelar memorias personales de otra persona.
 Reglas:
 1. Cuando el usuario dé una instrucción accionable, ejecuta la herramienta adecuada; no simules que lo hiciste.
 2. Convierte expresiones como “mañana” o “el viernes” a fechas ISO usando la fecha local indicada.
@@ -65,9 +65,11 @@ ${JSON.stringify(context)}`
   ]
 
   const { error: userMessageError } = await supabase.from('conversations').insert({
+    household_id: householdId,
     user_id: user.id,
     role: 'user',
     content: message,
+    created_by_member_id: memberId,
   })
   assertNoDbError(userMessageError)
 
@@ -106,6 +108,10 @@ ${JSON.stringify(context)}`
       try {
         result = await executeAssistantTool(call.function.name, args, {
           userId: user.id,
+          householdId,
+          householdName: household.name,
+          memberId,
+          memberName: member.name,
           supabase,
           timezone,
           currency,
@@ -135,9 +141,11 @@ ${JSON.stringify(context)}`
   const { data: saved, error: assistantMessageError } = await supabase
     .from('conversations')
     .insert({
+      household_id: householdId,
       user_id: user.id,
       role: 'assistant',
       content: finalText,
+      created_by_member_id: memberId,
       metadata: { tools: executed.map((item) => item.name) },
     })
     .select()
@@ -146,7 +154,7 @@ ${JSON.stringify(context)}`
 
   return c.json({
     data: {
-      message: saved,
+      message: { ...saved, created_by_member: member },
       executed_tools: executed.map((item) => item.name),
     },
   })

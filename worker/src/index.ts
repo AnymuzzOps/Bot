@@ -16,6 +16,8 @@ import { chatRoutes } from './routes/chat'
 import { dashboardRoutes } from './routes/dashboard'
 import { searchRoutes } from './routes/search'
 import { backupRoutes } from './routes/backup'
+import { membersRoutes } from './routes/members'
+import { householdRoutes } from './routes/household'
 
 const app = new Hono<AppEnv>()
 
@@ -48,6 +50,8 @@ app.get('/', (c) => c.json({
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }))
 
 app.use('/api/*', requireAuth)
+app.route('/api/household', householdRoutes)
+app.route('/api/members', membersRoutes)
 app.route('/api/chat', chatRoutes)
 app.route('/api/tasks', tasksRoutes)
 app.route('/api/shopping', shoppingRoutes)
@@ -63,7 +67,13 @@ app.route('/api', backupRoutes)
 app.notFound((c) => c.json({ error: 'Ruta no encontrada.' }, 404))
 
 app.onError((error, c) => {
-  console.error(error)
+  console.error('Worker request error', {
+    method: c.req.method,
+    pathname: new URL(c.req.url).pathname,
+    name: error instanceof Error ? error.name : typeof error,
+    message: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : undefined,
+  })
 
   if (error instanceof HttpError) {
     return c.json({ error: error.message, details: error.details }, error.status as 400)

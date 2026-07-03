@@ -195,6 +195,7 @@ export const assistantTools = [
           value: { type: 'string' },
           category: { type: 'string' },
           importance: { type: 'integer', minimum: 1, maximum: 5 },
+          scope: { type: 'string', enum: ['shared', 'personal'] },
         },
         required: ['key', 'value'],
       },
@@ -226,7 +227,7 @@ const findFirst = async (
   const result = await ctx.supabase
     .from(table)
     .select('*')
-    .eq('user_id', ctx.userId)
+    .eq('household_id', ctx.householdId)
     .or(filters)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -244,12 +245,14 @@ export const executeAssistantTool = async (
   switch (name) {
     case 'create_task': {
       const payload = {
+        household_id: ctx.householdId,
         user_id: ctx.userId,
         title: String(args.title || '').trim(),
         description: args.description ? String(args.description) : null,
         priority: ['low', 'medium', 'high'].includes(String(args.priority)) ? args.priority : 'medium',
         due_date: args.due_date || null,
         status: 'pending',
+        created_by_member_id: ctx.memberId,
       }
       if (!payload.title) throw new HttpError(400, 'La tarea necesita un título.')
       const { data, error } = await ctx.supabase.from('tasks').insert(payload).select().single()
@@ -269,14 +272,14 @@ export const executeAssistantTool = async (
         .from('tasks')
         .update(update)
         .eq('id', row.id)
-        .eq('user_id', ctx.userId)
+        .eq('household_id', ctx.householdId)
         .select()
         .single()
       assertNoDbError(error)
       return data
     }
     case 'list_tasks': {
-      let query = ctx.supabase.from('tasks').select('*').eq('user_id', ctx.userId).order('created_at', { ascending: false }).limit(30)
+      let query = ctx.supabase.from('tasks').select('*').eq('household_id', ctx.householdId).order('created_at', { ascending: false }).limit(30)
       if (args.status) query = query.eq('status', args.status)
       if (args.query) {
         const safe = escapeSearch(String(args.query))
@@ -288,11 +291,13 @@ export const executeAssistantTool = async (
     }
     case 'add_shopping_item': {
       const payload = {
+        household_id: ctx.householdId,
         user_id: ctx.userId,
         name: String(args.name || '').trim(),
         quantity: Number(args.quantity || 1),
         unit: String(args.unit || 'unidad'),
         category: String(args.category || 'General'),
+        created_by_member_id: ctx.memberId,
       }
       if (!payload.name) throw new HttpError(400, 'El producto necesita un nombre.')
       const { data, error } = await ctx.supabase.from('shopping_items').insert(payload).select().single()
@@ -307,12 +312,12 @@ export const executeAssistantTool = async (
       }
       if (args.purchased === true) update.purchased_at = new Date().toISOString()
       if (args.purchased === false) update.purchased_at = null
-      const { data, error } = await ctx.supabase.from('shopping_items').update(update).eq('id', row.id).eq('user_id', ctx.userId).select().single()
+      const { data, error } = await ctx.supabase.from('shopping_items').update(update).eq('id', row.id).eq('household_id', ctx.householdId).select().single()
       assertNoDbError(error)
       return data
     }
     case 'list_shopping': {
-      let query = ctx.supabase.from('shopping_items').select('*').eq('user_id', ctx.userId).order('purchased', { ascending: true }).limit(40)
+      let query = ctx.supabase.from('shopping_items').select('*').eq('household_id', ctx.householdId).order('purchased', { ascending: true }).limit(40)
       if (typeof args.purchased === 'boolean') query = query.eq('purchased', args.purchased)
       if (args.query) query = query.ilike('name', `%${escapeSearch(String(args.query))}%`)
       const { data, error } = await query
@@ -321,6 +326,7 @@ export const executeAssistantTool = async (
     }
     case 'add_inventory_item': {
       const payload = {
+        household_id: ctx.householdId,
         user_id: ctx.userId,
         name: String(args.name || '').trim(),
         quantity: Number(args.quantity),
@@ -329,6 +335,7 @@ export const executeAssistantTool = async (
         expiration_date: args.expiration_date || null,
         location: args.location || 'despensa',
         category: args.category || 'General',
+        created_by_member_id: ctx.memberId,
       }
       if (!payload.name || !payload.unit || !Number.isFinite(payload.quantity)) throw new HttpError(400, 'Faltan datos del alimento.')
       const { data, error } = await ctx.supabase.from('inventory').insert(payload).select().single()
@@ -341,12 +348,12 @@ export const executeAssistantTool = async (
       const delta = Number(args.delta)
       if (!Number.isFinite(delta)) throw new HttpError(400, 'El ajuste debe ser numérico.')
       const quantity = Math.max(0, current + delta)
-      const { data, error } = await ctx.supabase.from('inventory').update({ quantity }).eq('id', row.id).eq('user_id', ctx.userId).select().single()
+      const { data, error } = await ctx.supabase.from('inventory').update({ quantity }).eq('id', row.id).eq('household_id', ctx.householdId).select().single()
       assertNoDbError(error)
       return data
     }
     case 'list_inventory': {
-      let query = ctx.supabase.from('inventory').select('*').eq('user_id', ctx.userId).order('expiration_date', { ascending: true, nullsFirst: false }).limit(40)
+      let query = ctx.supabase.from('inventory').select('*').eq('household_id', ctx.householdId).order('expiration_date', { ascending: true, nullsFirst: false }).limit(40)
       if (args.query) query = query.ilike('name', `%${escapeSearch(String(args.query))}%`)
       if (Number.isFinite(Number(args.expiring_within_days))) {
         query = query.not('expiration_date', 'is', null).lte('expiration_date', daysFromNowISO(Number(args.expiring_within_days)))
@@ -360,12 +367,14 @@ export const executeAssistantTool = async (
       const amount = Number(args.amount)
       if (!['income', 'expense'].includes(type) || !Number.isFinite(amount) || amount <= 0) throw new HttpError(400, 'El movimiento financiero no es válido.')
       const payload = {
+        household_id: ctx.householdId,
         user_id: ctx.userId,
         type,
         amount,
         category: String(args.category || 'General'),
         description: args.description ? String(args.description) : null,
         transaction_date: args.transaction_date || localDateISO(ctx.timezone),
+        created_by_member_id: ctx.memberId,
       }
       const { data, error } = await ctx.supabase.from('finances').insert(payload).select().single()
       assertNoDbError(error)
@@ -374,8 +383,8 @@ export const executeAssistantTool = async (
     case 'get_finance_summary': {
       const { month, start, end } = monthBounds(args.month ? String(args.month) : undefined)
       const [monthlyResult, allTimeResult] = await Promise.all([
-        ctx.supabase.from('finances').select('type,amount,category').eq('user_id', ctx.userId).gte('transaction_date', start).lt('transaction_date', end),
-        ctx.supabase.from('finances').select('type,amount').eq('user_id', ctx.userId),
+        ctx.supabase.from('finances').select('type,amount,category').eq('household_id', ctx.householdId).gte('transaction_date', start).lt('transaction_date', end),
+        ctx.supabase.from('finances').select('type,amount').eq('household_id', ctx.householdId),
       ])
       assertNoDbError(monthlyResult.error)
       assertNoDbError(allTimeResult.error)
@@ -393,14 +402,21 @@ export const executeAssistantTool = async (
     }
     case 'save_memory': {
       const payload = {
+        household_id: ctx.householdId,
         user_id: ctx.userId,
         key: String(args.key || '').trim(),
         value: String(args.value || '').trim(),
         category: String(args.category || 'general'),
         importance: Math.min(5, Math.max(1, Number(args.importance || 3))),
+        scope: String(args.scope || 'shared') === 'personal' ? 'personal' : 'shared',
+        created_by_member_id: ctx.memberId,
       }
       if (!payload.key || !payload.value) throw new HttpError(400, 'La memoria necesita clave y valor.')
-      const { data, error } = await ctx.supabase.from('memories').upsert(payload, { onConflict: 'user_id,key' }).select().single()
+      const scopedPayload = {
+        ...payload,
+        member_id: payload.scope === 'personal' ? ctx.memberId : null,
+      }
+      const { data, error } = await ctx.supabase.from('memories').insert(scopedPayload).select().single()
       assertNoDbError(error)
       return data
     }
@@ -408,11 +424,11 @@ export const executeAssistantTool = async (
       const safe = escapeSearch(String(args.query || ''))
       if (!safe) return []
       const [tasks, shopping, inventory, finances, memories] = await Promise.all([
-        ctx.supabase.from('tasks').select('id,title,description,status,created_at').eq('user_id', ctx.userId).or(`title.ilike.%${safe}%,description.ilike.%${safe}%`).limit(8),
-        ctx.supabase.from('shopping_items').select('id,name,category,purchased,created_at').eq('user_id', ctx.userId).or(`name.ilike.%${safe}%,category.ilike.%${safe}%`).limit(8),
-        ctx.supabase.from('inventory').select('id,name,category,location,created_at').eq('user_id', ctx.userId).or(`name.ilike.%${safe}%,category.ilike.%${safe}%`).limit(8),
-        ctx.supabase.from('finances').select('id,description,category,type,amount,created_at').eq('user_id', ctx.userId).or(`description.ilike.%${safe}%,category.ilike.%${safe}%`).limit(8),
-        ctx.supabase.from('memories').select('id,key,value,category,created_at').eq('user_id', ctx.userId).or(`key.ilike.%${safe}%,value.ilike.%${safe}%`).limit(8),
+        ctx.supabase.from('tasks').select('id,title,description,status,created_at').eq('household_id', ctx.householdId).or(`title.ilike.%${safe}%,description.ilike.%${safe}%`).limit(8),
+        ctx.supabase.from('shopping_items').select('id,name,category,purchased,created_at').eq('household_id', ctx.householdId).or(`name.ilike.%${safe}%,category.ilike.%${safe}%`).limit(8),
+        ctx.supabase.from('inventory').select('id,name,category,location,created_at').eq('household_id', ctx.householdId).or(`name.ilike.%${safe}%,category.ilike.%${safe}%`).limit(8),
+        ctx.supabase.from('finances').select('id,description,category,type,amount,created_at').eq('household_id', ctx.householdId).or(`description.ilike.%${safe}%,category.ilike.%${safe}%`).limit(8),
+        ctx.supabase.from('memories').select('id,key,value,category,created_at').eq('household_id', ctx.householdId).or(`scope.eq.shared,and(scope.eq.personal,member_id.eq.${ctx.memberId})`).or(`key.ilike.%${safe}%,value.ilike.%${safe}%`).limit(8),
       ])
       return {
         tasks: tasks.data || [],

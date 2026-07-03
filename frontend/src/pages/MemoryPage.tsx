@@ -34,10 +34,10 @@ export function MemoryPage() {
     event.preventDefault(); setSaving(true)
     try {
       if (editing) {
-        const updated = await apiData<Memory>(`/api/memories/${editing.id}`, { method: 'PATCH', body: form })
+        const updated = await apiData<Memory>(`/api/memories/${editing.id}`, { method: 'PATCH', body: { ...form } })
         setItems((current) => current.map((item) => item.id === updated.id ? updated : item)); showToast('Recuerdo actualizado.')
       } else {
-        const created = await apiData<Memory>('/api/memories', { method: 'POST', body: form })
+        const created = await apiData<Memory>('/api/memories', { method: 'POST', body: { ...form } })
         setItems((current) => [created, ...current.filter((item) => item.id !== created.id)]); showToast('Recuerdo guardado.')
       }
       setModalOpen(false)

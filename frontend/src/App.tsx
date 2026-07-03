@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useAuth } from './context/AuthContext'
+import { useHousehold } from './context/HouseholdContext'
 import type { View } from './lib/types'
 import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -22,6 +23,7 @@ const readHash = (): View => {
 
 export function App() {
   const { user, loading } = useAuth()
+  const { member, loading: householdLoading, error: householdError } = useHousehold()
   const [view, setView] = useState<View>(readHash)
 
   useEffect(() => {
@@ -35,11 +37,14 @@ export function App() {
     setView(next)
   }
 
-  if (loading) {
+  if (loading || (user && householdLoading)) {
     return <div className="boot-screen"><div className="brand-mark"><Sparkles size={24} /></div><span className="spinner" /><p>Cargando tu asistente…</p></div>
   }
 
   if (!user) return <AuthPage />
+
+
+  if (!member) return <div className="boot-screen"><span className="spinner" /><p>{householdError || 'Preparando hogar compartido…'}</p></div>
 
   const page = {
     dashboard: <DashboardPage onNavigate={navigate} />,
