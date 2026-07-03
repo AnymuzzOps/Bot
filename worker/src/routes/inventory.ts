@@ -4,6 +4,7 @@ import { inventoryCreateSchema, inventoryUpdateSchema } from '../lib/schemas'
 import { assertNoDbError, HttpError } from '../lib/errors'
 import { cleanObject, escapeSearch, parseLimit } from '../lib/query'
 import { daysFromNowISO } from '../lib/dates'
+import { requireHouseholdMember } from '../lib/members'
 
 export const inventoryRoutes = new Hono<AppEnv>()
 
@@ -38,9 +39,11 @@ inventoryRoutes.post('/', async (c) => {
   const body = inventoryCreateSchema.parse(await c.req.json())
   const supabase = c.get('supabase')
   const user = c.get('user')
+  const member = await requireHouseholdMember(supabase, user.id, body.member_id)
+  const { member_id: _memberId, ...item } = body
   const { data, error } = await supabase
     .from('inventory')
-    .insert({ ...body, user_id: user.id })
+    .insert({ ...item, user_id: user.id, created_by_member_id: member.id })
     .select()
     .single()
   assertNoDbError(error)
@@ -52,9 +55,15 @@ inventoryRoutes.patch('/:id', async (c) => {
   if (!Object.keys(body).length) throw new HttpError(400, 'No hay cambios para guardar.')
   const supabase = c.get('supabase')
   const user = c.get('user')
+  let createdByMemberId: string | undefined
+  if (body.member_id) {
+    const member = await requireHouseholdMember(supabase, user.id, body.member_id)
+    createdByMemberId = member.id
+  }
+  const { member_id: _memberId, ...item } = body
   const { data, error } = await supabase
     .from('inventory')
-    .update(body)
+    .update({ ...item, ...(createdByMemberId ? { created_by_member_id: createdByMemberId } : {}) })
     .eq('id', c.req.param('id'))
     .eq('user_id', user.id)
     .select()

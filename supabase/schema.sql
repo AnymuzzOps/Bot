@@ -14,6 +14,16 @@ create table if not exists public.users (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.household_members (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  slug text not null check (slug in ('benjamin', 'javiera')),
+  avatar text null,
+  created_at timestamptz not null default now(),
+  unique(user_id, slug)
+);
+
 create table if not exists public.memories (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -21,9 +31,16 @@ create table if not exists public.memories (
   value text not null,
   category text not null default 'general',
   importance smallint not null default 3 check (importance between 1 and 5),
+  scope text not null default 'shared' check (scope in ('shared', 'personal')),
+  member_id uuid null references public.household_members(id) on delete set null,
+  created_by_member_id uuid null references public.household_members(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique(user_id, key)
+  unique(user_id, key),
+  constraint memories_scope_member_check check (
+    (scope = 'shared' and member_id is null) or
+    (scope = 'personal' and member_id is not null)
+  )
 );
 
 create table if not exists public.conversations (
@@ -32,6 +49,7 @@ create table if not exists public.conversations (
   role text not null check (role in ('user', 'assistant', 'system', 'tool')),
   content text not null,
   metadata jsonb not null default '{}'::jsonb,
+  created_by_member_id uuid null references public.household_members(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
@@ -44,6 +62,7 @@ create table if not exists public.tasks (
   priority text not null default 'medium' check (priority in ('low', 'medium', 'high')),
   due_date timestamptz,
   completed_at timestamptz,
+  created_by_member_id uuid null references public.household_members(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -57,6 +76,7 @@ create table if not exists public.shopping_items (
   category text not null default 'General',
   purchased boolean not null default false,
   purchased_at timestamptz,
+  created_by_member_id uuid null references public.household_members(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -72,6 +92,7 @@ create table if not exists public.inventory (
   location text not null default 'despensa' check (location in ('refrigerador', 'congelador', 'despensa', 'otro')),
   category text not null default 'General',
   notes text,
+  created_by_member_id uuid null references public.household_members(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -84,11 +105,19 @@ create table if not exists public.finances (
   category text not null,
   description text,
   transaction_date date not null default current_date,
+  created_by_member_id uuid null references public.household_members(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
+create index if not exists household_members_user_slug_idx on public.household_members(user_id, slug);
 create index if not exists memories_user_updated_idx on public.memories(user_id, updated_at desc);
+create index if not exists memories_scope_member_idx on public.memories(user_id, scope, member_id);
+create index if not exists tasks_created_by_member_idx on public.tasks(created_by_member_id);
+create index if not exists shopping_created_by_member_idx on public.shopping_items(created_by_member_id);
+create index if not exists inventory_created_by_member_idx on public.inventory(created_by_member_id);
+create index if not exists finances_created_by_member_idx on public.finances(created_by_member_id);
+create index if not exists conversations_created_by_member_idx on public.conversations(created_by_member_id);
 create index if not exists conversations_user_created_idx on public.conversations(user_id, created_at desc);
 create index if not exists tasks_user_status_due_idx on public.tasks(user_id, status, due_date);
 create index if not exists shopping_user_purchased_idx on public.shopping_items(user_id, purchased, created_at desc);
@@ -121,6 +150,13 @@ begin
     coalesce(new.raw_user_meta_data ->> 'full_name', '')
   )
   on conflict (id) do nothing;
+
+  insert into public.household_members (user_id, name, slug)
+  values
+    (new.id, 'Benjamín', 'benjamin'),
+    (new.id, 'Javiera', 'javiera')
+  on conflict (user_id, slug) do nothing;
+
   return new;
 end;
 $$;
@@ -151,6 +187,7 @@ end;
 $$;
 
 alter table public.users enable row level security;
+alter table public.household_members enable row level security;
 alter table public.memories enable row level security;
 alter table public.conversations enable row level security;
 alter table public.tasks enable row level security;
@@ -165,6 +202,16 @@ drop policy if exists "users_insert_own" on public.users;
 create policy "users_insert_own" on public.users for insert to authenticated with check ((select auth.uid()) = id);
 drop policy if exists "users_update_own" on public.users;
 create policy "users_update_own" on public.users for update to authenticated using ((select auth.uid()) = id) with check ((select auth.uid()) = id);
+
+-- Miembros del hogar: cada usuario solo accede a sus propios perfiles internos.
+drop policy if exists "household_members_select_own" on public.household_members;
+create policy "household_members_select_own" on public.household_members for select to authenticated using ((select auth.uid()) = user_id);
+drop policy if exists "household_members_insert_own" on public.household_members;
+create policy "household_members_insert_own" on public.household_members for insert to authenticated with check ((select auth.uid()) = user_id);
+drop policy if exists "household_members_update_own" on public.household_members;
+create policy "household_members_update_own" on public.household_members for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+drop policy if exists "household_members_delete_own" on public.household_members;
+create policy "household_members_delete_own" on public.household_members for delete to authenticated using ((select auth.uid()) = user_id);
 
 -- Políticas CRUD uniformes para tablas con user_id.
 do $$
@@ -190,9 +237,18 @@ $$;
 
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on public.users to authenticated;
+grant select, insert, update, delete on public.household_members to authenticated;
 grant select, insert, update, delete on public.memories to authenticated;
 grant select, insert, update, delete on public.conversations to authenticated;
 grant select, insert, update, delete on public.tasks to authenticated;
 grant select, insert, update, delete on public.shopping_items to authenticated;
 grant select, insert, update, delete on public.inventory to authenticated;
 grant select, insert, update, delete on public.finances to authenticated;
+
+insert into public.household_members (user_id, name, slug)
+select id, 'Benjamín', 'benjamin' from auth.users
+on conflict (user_id, slug) do nothing;
+
+insert into public.household_members (user_id, name, slug)
+select id, 'Javiera', 'javiera' from auth.users
+on conflict (user_id, slug) do nothing;

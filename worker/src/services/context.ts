@@ -4,6 +4,7 @@ import { daysFromNowISO, monthBounds } from '../lib/dates'
 export const loadAssistantContext = async (
   supabase: SupabaseClient,
   userId: string,
+  memberId?: string,
 ) => {
   const { start, end, month } = monthBounds()
   const [profileResult, memoriesResult, tasksResult, shoppingResult, inventoryResult, financesResult, allFinancesResult] = await Promise.all([
@@ -12,6 +13,7 @@ export const loadAssistantContext = async (
       .from('memories')
       .select('key,value,category,importance')
       .eq('user_id', userId)
+      .or(memberId ? `scope.eq.shared,and(scope.eq.personal,member_id.eq.${memberId})` : 'scope.eq.shared')
       .order('importance', { ascending: false })
       .order('updated_at', { ascending: false })
       .limit(30),

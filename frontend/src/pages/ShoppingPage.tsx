@@ -4,6 +4,7 @@ import { api, apiData } from '../lib/api'
 import type { ShoppingItem } from '../lib/types'
 import { classNames } from '../lib/format'
 import { useToast } from '../context/ToastContext'
+import { useActiveMember } from '../context/ActiveMemberContext'
 import { Modal } from '../components/Modal'
 import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
@@ -20,6 +21,7 @@ export function ShoppingPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const { showToast } = useToast()
+  const { activeMember } = useActiveMember()
 
   useEffect(() => {
     apiData<ShoppingItem[]>('/api/shopping?limit=200')
@@ -46,11 +48,11 @@ export function ShoppingPage() {
     setSaving(true)
     try {
       if (editing) {
-        const updated = await apiData<ShoppingItem>(`/api/shopping/${editing.id}`, { method: 'PATCH', body: form })
+        const updated = await apiData<ShoppingItem>(`/api/shopping/${editing.id}`, { method: 'PATCH', body: { ...form, member_id: activeMember?.id } })
         setItems((current) => current.map((item) => item.id === updated.id ? updated : item))
         showToast('Producto actualizado.')
       } else {
-        const created = await apiData<ShoppingItem>('/api/shopping', { method: 'POST', body: form })
+        const created = await apiData<ShoppingItem>('/api/shopping', { method: 'POST', body: { ...form, member_id: activeMember?.id } })
         setItems((current) => [created, ...current])
         showToast('Producto agregado.')
       }

@@ -4,6 +4,7 @@ import { api, apiData } from '../lib/api'
 import type { InventoryItem } from '../lib/types'
 import { formatDate, todayISO } from '../lib/format'
 import { useToast } from '../context/ToastContext'
+import { useActiveMember } from '../context/ActiveMemberContext'
 import { Modal } from '../components/Modal'
 import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
@@ -31,6 +32,7 @@ export function InventoryPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const { showToast } = useToast()
+  const { activeMember } = useActiveMember()
 
   useEffect(() => {
     apiData<InventoryItem[]>('/api/inventory?limit=200')
@@ -57,7 +59,7 @@ export function InventoryPage() {
 
   const save = async (event: FormEvent) => {
     event.preventDefault(); setSaving(true)
-    const payload = { ...form, purchase_date: form.purchase_date || null, expiration_date: form.expiration_date || null, notes: form.notes || null }
+    const payload = { ...form, member_id: activeMember?.id, purchase_date: form.purchase_date || null, expiration_date: form.expiration_date || null, notes: form.notes || null }
     try {
       if (editing) {
         const updated = await apiData<InventoryItem>(`/api/inventory/${editing.id}`, { method: 'PATCH', body: payload })

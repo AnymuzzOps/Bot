@@ -17,7 +17,7 @@ const importSchema = z.object({
 })
 
 const sanitizeRows = (rows: Record<string, unknown>[], userId: string) =>
-  rows.map(({ id: _id, user_id: _userId, created_at: _created, updated_at: _updated, ...rest }) => ({
+  rows.map(({ id: _id, user_id: _userId, created_at: _created, updated_at: _updated, created_by_member_id: _createdBy, member_id: _memberId, ...rest }) => ({
     ...rest,
     user_id: userId,
   }))
@@ -77,7 +77,9 @@ backupRoutes.post('/import', async (c) => {
 
   const imported: Record<string, number> = {}
   for (const [table, rows] of mapping) {
-    const sanitized = sanitizeRows(rows, user.id)
+    const sanitized = sanitizeRows(rows, user.id).map((row) => (
+      table === 'memories' ? { ...row, scope: 'shared' } : row
+    ))
     if (!sanitized.length) {
       imported[table] = 0
       continue

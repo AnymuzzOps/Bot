@@ -3,6 +3,7 @@ import type { AppEnv } from '../types'
 import { shoppingCreateSchema, shoppingUpdateSchema } from '../lib/schemas'
 import { assertNoDbError, HttpError } from '../lib/errors'
 import { cleanObject, escapeSearch, parseLimit } from '../lib/query'
+import { requireHouseholdMember } from '../lib/members'
 
 export const shoppingRoutes = new Hono<AppEnv>()
 
@@ -32,11 +33,14 @@ shoppingRoutes.post('/', async (c) => {
   const body = shoppingCreateSchema.parse(await c.req.json())
   const supabase = c.get('supabase')
   const user = c.get('user')
+  const member = await requireHouseholdMember(supabase, user.id, body.member_id)
+  const { member_id: _memberId, ...item } = body
   const { data, error } = await supabase
     .from('shopping_items')
     .insert({
-      ...body,
+      ...item,
       user_id: user.id,
+      created_by_member_id: member.id,
       purchased_at: body.purchased ? new Date().toISOString() : null,
     })
     .select()
@@ -50,8 +54,15 @@ shoppingRoutes.patch('/:id', async (c) => {
   if (!Object.keys(body).length) throw new HttpError(400, 'No hay cambios para guardar.')
   const supabase = c.get('supabase')
   const user = c.get('user')
+  let createdByMemberId: string | undefined
+  if (body.member_id) {
+    const member = await requireHouseholdMember(supabase, user.id, body.member_id)
+    createdByMemberId = member.id
+  }
+  const { member_id: _memberId, ...item } = body
   const payload = {
-    ...body,
+    ...item,
+    ...(createdByMemberId ? { created_by_member_id: createdByMemberId } : {}),
     ...(body.purchased === true ? { purchased_at: new Date().toISOString() } : {}),
     ...(body.purchased === false ? { purchased_at: null } : {}),
   }

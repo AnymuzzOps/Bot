@@ -3,6 +3,7 @@ import type { AppEnv } from '../types'
 import { memoryCreateSchema, memoryUpdateSchema } from '../lib/schemas'
 import { assertNoDbError, HttpError } from '../lib/errors'
 import { cleanObject, escapeSearch, parseLimit } from '../lib/query'
+import { requireHouseholdMember } from '../lib/members'
 
 export const memoriesRoutes = new Hono<AppEnv>()
 
@@ -32,9 +33,17 @@ memoriesRoutes.post('/', async (c) => {
   const body = memoryCreateSchema.parse(await c.req.json())
   const supabase = c.get('supabase')
   const user = c.get('user')
+  const member = await requireHouseholdMember(supabase, user.id, body.member_id)
+  const { member_id: _memberId, ...memory } = body
+  const payload = {
+    ...memory,
+    user_id: user.id,
+    created_by_member_id: member.id,
+    member_id: memory.scope === 'personal' ? member.id : null,
+  }
   const { data, error } = await supabase
     .from('memories')
-    .upsert({ ...body, user_id: user.id }, { onConflict: 'user_id,key' })
+    .upsert(payload, { onConflict: 'user_id,key' })
     .select()
     .single()
   assertNoDbError(error)
@@ -46,9 +55,24 @@ memoriesRoutes.patch('/:id', async (c) => {
   if (!Object.keys(body).length) throw new HttpError(400, 'No hay cambios para guardar.')
   const supabase = c.get('supabase')
   const user = c.get('user')
+  let memberId: string | null | undefined
+  let createdByMemberId: string | undefined
+  if (body.member_id) {
+    const member = await requireHouseholdMember(supabase, user.id, body.member_id)
+    memberId = member.id
+    createdByMemberId = member.id
+  }
+  const { member_id: _memberId, ...memory } = body
+  const payload = {
+    ...memory,
+    ...(createdByMemberId ? { created_by_member_id: createdByMemberId } : {}),
+    ...(memory.scope === 'shared' ? { member_id: null } : {}),
+    ...(memory.scope === 'personal' && memberId ? { member_id: memberId } : {}),
+  }
+  if (memory.scope === 'personal' && !memberId) throw new HttpError(400, 'Debes seleccionar quién usará esta memoria personal.')
   const { data, error } = await supabase
     .from('memories')
-    .update(body)
+    .update(payload)
     .eq('id', c.req.param('id'))
     .eq('user_id', user.id)
     .select()

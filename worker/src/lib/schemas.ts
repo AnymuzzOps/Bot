@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 const optionalText = z.string().trim().max(2000).optional().nullable()
 const dateOrDateTime = z.string().trim().max(40).optional().nullable()
+const memberId = z.string().uuid().optional()
 
 export const taskCreateSchema = z.object({
   title: z.string().trim().min(1).max(240),
@@ -9,6 +10,7 @@ export const taskCreateSchema = z.object({
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
   due_date: dateOrDateTime,
   status: z.enum(['pending', 'completed']).default('pending'),
+  member_id: memberId,
 })
 
 export const taskUpdateSchema = taskCreateSchema.partial()
@@ -19,6 +21,7 @@ export const shoppingCreateSchema = z.object({
   unit: z.string().trim().max(50).default('unidad'),
   category: z.string().trim().max(100).default('General'),
   purchased: z.boolean().default(false),
+  member_id: memberId,
 })
 
 export const shoppingUpdateSchema = shoppingCreateSchema.partial()
@@ -32,6 +35,7 @@ export const inventoryCreateSchema = z.object({
   location: z.enum(['refrigerador', 'congelador', 'despensa', 'otro']).default('despensa'),
   category: z.string().trim().max(100).default('General'),
   notes: optionalText,
+  member_id: memberId,
 })
 
 export const inventoryUpdateSchema = inventoryCreateSchema.partial()
@@ -42,6 +46,7 @@ export const financeCreateSchema = z.object({
   category: z.string().trim().min(1).max(100),
   description: z.string().trim().max(500).optional().nullable(),
   transaction_date: z.string().trim().max(20).optional(),
+  member_id: memberId,
 })
 
 export const financeUpdateSchema = financeCreateSchema.partial()
@@ -51,6 +56,8 @@ export const memoryCreateSchema = z.object({
   value: z.string().trim().min(1).max(4000),
   category: z.string().trim().max(100).default('general'),
   importance: z.coerce.number().int().min(1).max(5).default(3),
+  scope: z.enum(['shared', 'personal']).default('shared'),
+  member_id: memberId,
 })
 
 export const memoryUpdateSchema = memoryCreateSchema.partial()

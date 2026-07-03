@@ -195,6 +195,7 @@ export const assistantTools = [
           value: { type: 'string' },
           category: { type: 'string' },
           importance: { type: 'integer', minimum: 1, maximum: 5 },
+          scope: { type: 'string', enum: ['shared', 'personal'] },
         },
         required: ['key', 'value'],
       },
@@ -250,6 +251,7 @@ export const executeAssistantTool = async (
         priority: ['low', 'medium', 'high'].includes(String(args.priority)) ? args.priority : 'medium',
         due_date: args.due_date || null,
         status: 'pending',
+        created_by_member_id: ctx.memberId,
       }
       if (!payload.title) throw new HttpError(400, 'La tarea necesita un título.')
       const { data, error } = await ctx.supabase.from('tasks').insert(payload).select().single()
@@ -293,6 +295,7 @@ export const executeAssistantTool = async (
         quantity: Number(args.quantity || 1),
         unit: String(args.unit || 'unidad'),
         category: String(args.category || 'General'),
+        created_by_member_id: ctx.memberId,
       }
       if (!payload.name) throw new HttpError(400, 'El producto necesita un nombre.')
       const { data, error } = await ctx.supabase.from('shopping_items').insert(payload).select().single()
@@ -329,6 +332,7 @@ export const executeAssistantTool = async (
         expiration_date: args.expiration_date || null,
         location: args.location || 'despensa',
         category: args.category || 'General',
+        created_by_member_id: ctx.memberId,
       }
       if (!payload.name || !payload.unit || !Number.isFinite(payload.quantity)) throw new HttpError(400, 'Faltan datos del alimento.')
       const { data, error } = await ctx.supabase.from('inventory').insert(payload).select().single()
@@ -366,6 +370,7 @@ export const executeAssistantTool = async (
         category: String(args.category || 'General'),
         description: args.description ? String(args.description) : null,
         transaction_date: args.transaction_date || localDateISO(ctx.timezone),
+        created_by_member_id: ctx.memberId,
       }
       const { data, error } = await ctx.supabase.from('finances').insert(payload).select().single()
       assertNoDbError(error)
@@ -398,9 +403,15 @@ export const executeAssistantTool = async (
         value: String(args.value || '').trim(),
         category: String(args.category || 'general'),
         importance: Math.min(5, Math.max(1, Number(args.importance || 3))),
+        scope: String(args.scope || 'shared') === 'personal' ? 'personal' : 'shared',
+        created_by_member_id: ctx.memberId,
       }
       if (!payload.key || !payload.value) throw new HttpError(400, 'La memoria necesita clave y valor.')
-      const { data, error } = await ctx.supabase.from('memories').upsert(payload, { onConflict: 'user_id,key' }).select().single()
+      const scopedPayload = {
+        ...payload,
+        member_id: payload.scope === 'personal' ? ctx.memberId : null,
+      }
+      const { data, error } = await ctx.supabase.from('memories').upsert(scopedPayload, { onConflict: 'user_id,key' }).select().single()
       assertNoDbError(error)
       return data
     }
