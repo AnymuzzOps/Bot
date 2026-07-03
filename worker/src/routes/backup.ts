@@ -18,7 +18,7 @@ const importSchema = z.object({
 })
 
 const sanitizeRows = (rows: Record<string, unknown>[], userId: string, householdId: string) =>
-  rows.map(({ id: _id, user_id: _userId, household_id: _householdId, created_at: _created, updated_at: _updated, created_by_member_id: _createdBy, member_id: _memberId, ...rest }) => ({
+  rows.map(({ id: _id, user_id:_userId, household_id: _householdId, created_at: _created, updated_at: _updated, created_by_member_id: _createdBy, member_id: _memberId, ...rest }) => ({
     ...rest,
     household_id: householdId,
     user_id: userId,

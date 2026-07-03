@@ -34,6 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user: session?.user || null,
     loading,
     signOut: async () => {
+      localStorage.removeItem('household_active_member_id')
       await supabase.auth.signOut()
     },
   }), [session, loading])
