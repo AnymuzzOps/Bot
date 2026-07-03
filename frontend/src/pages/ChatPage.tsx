@@ -4,6 +4,7 @@ import { api, apiData } from '../lib/api'
 import type { Conversation } from '../lib/types'
 import { formatDate } from '../lib/format'
 import { useToast } from '../context/ToastContext'
+import { useHousehold } from '../context/HouseholdContext'
 import { Loading } from '../components/Loading'
 
 const suggestions = [
@@ -20,6 +21,7 @@ export function ChatPage() {
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const { showToast } = useToast()
+  const { member: householdMember } = useHousehold()
 
   const load = async () => {
     try {
@@ -37,11 +39,15 @@ export function ChatPage() {
     const content = (preset ?? input).trim()
     if (!content || sending) return
 
+    const chatAuthor = householdMember ? { ...householdMember, avatar: householdMember.avatar || null } : null
+
     const optimistic: Conversation = {
       id: `temp-${Date.now()}`,
       role: 'user',
       content,
       created_at: new Date().toISOString(),
+      created_by_member_id: chatAuthor?.id || null,
+      created_by_member: chatAuthor,
     }
     setMessages((current) => [...current, optimistic])
     setInput('')
@@ -94,6 +100,7 @@ export function ChatPage() {
             <article className={`message ${message.role}`} key={message.id}>
               <div className="message-avatar">{message.role === 'assistant' ? <Bot size={19} /> : <UserRound size={19} />}</div>
               <div className="message-bubble">
+                {message.created_by_member && <span className="message-author">{message.created_by_member.name}</span>}
                 <p>{message.content}</p>
                 <time>{formatDate(message.created_at, true)}</time>
               </div>

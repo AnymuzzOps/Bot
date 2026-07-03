@@ -3,12 +3,12 @@ import type { AppEnv } from '../types'
 import { shoppingCreateSchema, shoppingUpdateSchema } from '../lib/schemas'
 import { assertNoDbError, HttpError } from '../lib/errors'
 import { cleanObject, escapeSearch, parseLimit } from '../lib/query'
+import { requireCurrentMembership } from '../lib/household'
 
 export const shoppingRoutes = new Hono<AppEnv>()
 
 shoppingRoutes.get('/', async (c) => {
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, householdId } = await requireCurrentMembership(c)
   const purchased = c.req.query('purchased')
   const q = escapeSearch(c.req.query('q') || '')
   const limit = parseLimit(c.req.query('limit'))
@@ -16,7 +16,7 @@ shoppingRoutes.get('/', async (c) => {
   let query = supabase
     .from('shopping_items')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('household_id', householdId)
     .order('purchased', { ascending: true })
     .order('created_at', { ascending: false })
     .limit(limit)
@@ -30,13 +30,14 @@ shoppingRoutes.get('/', async (c) => {
 
 shoppingRoutes.post('/', async (c) => {
   const body = shoppingCreateSchema.parse(await c.req.json())
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, user, householdId, memberId } = await requireCurrentMembership(c)
   const { data, error } = await supabase
     .from('shopping_items')
     .insert({
       ...body,
+      household_id: householdId,
       user_id: user.id,
+      created_by_member_id: memberId,
       purchased_at: body.purchased ? new Date().toISOString() : null,
     })
     .select()
@@ -48,8 +49,7 @@ shoppingRoutes.post('/', async (c) => {
 shoppingRoutes.patch('/:id', async (c) => {
   const body = cleanObject(shoppingUpdateSchema.parse(await c.req.json()))
   if (!Object.keys(body).length) throw new HttpError(400, 'No hay cambios para guardar.')
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, householdId } = await requireCurrentMembership(c)
   const payload = {
     ...body,
     ...(body.purchased === true ? { purchased_at: new Date().toISOString() } : {}),
@@ -59,7 +59,7 @@ shoppingRoutes.patch('/:id', async (c) => {
     .from('shopping_items')
     .update(payload)
     .eq('id', c.req.param('id'))
-    .eq('user_id', user.id)
+    .eq('household_id', householdId)
     .select()
     .single()
   assertNoDbError(error)
@@ -67,13 +67,12 @@ shoppingRoutes.patch('/:id', async (c) => {
 })
 
 shoppingRoutes.delete('/:id', async (c) => {
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, householdId } = await requireCurrentMembership(c)
   const { error } = await supabase
     .from('shopping_items')
     .delete()
     .eq('id', c.req.param('id'))
-    .eq('user_id', user.id)
+    .eq('household_id', householdId)
   assertNoDbError(error)
   return c.body(null, 204)
 })

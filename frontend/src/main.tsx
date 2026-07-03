@@ -4,6 +4,7 @@ import { App } from './App'
 import { AuthProvider } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { ToastProvider } from './context/ToastContext'
+import { HouseholdProvider } from './context/HouseholdContext'
 import './styles/index.css'
 
 createRoot(document.getElementById('root')!).render(
@@ -11,7 +12,9 @@ createRoot(document.getElementById('root')!).render(
     <ThemeProvider>
       <ToastProvider>
         <AuthProvider>
-          <App />
+          <HouseholdProvider>
+            <App />
+          </HouseholdProvider>
         </AuthProvider>
       </ToastProvider>
     </ThemeProvider>

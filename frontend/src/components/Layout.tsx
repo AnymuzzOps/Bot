@@ -23,6 +23,7 @@ import { apiData } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { Modal } from './Modal'
+import { useHousehold } from '../context/HouseholdContext'
 
 const navigation: Array<{ id: View; label: string; icon: React.ReactNode }> = [
   { id: 'dashboard', label: 'Inicio', icon: <LayoutDashboard size={20} /> },
@@ -56,6 +57,7 @@ export function Layout({
   children: React.ReactNode
 }) {
   const { user, signOut } = useAuth()
+  const { member, household } = useHousehold()
   const { theme, toggleTheme } = useTheme()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -141,7 +143,7 @@ export function Layout({
         <header className="topbar">
           <div className="topbar-title">
             <button className="icon-button mobile-menu" onClick={() => setMobileOpen(true)}><Menu size={22} /></button>
-            <div><span>Asistente personal</span><h1>{viewLabels[view]}</h1></div>
+            <div><span>{member ? `Hola, ${member.name}` : household?.name || 'Asistente personal'}</span><h1>{viewLabels[view]}</h1></div>
           </div>
           <div className="topbar-actions">
             <button className="search-trigger" onClick={() => setSearchOpen(true)}>

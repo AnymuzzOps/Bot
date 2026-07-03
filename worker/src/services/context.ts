@@ -4,35 +4,38 @@ import { daysFromNowISO, monthBounds } from '../lib/dates'
 export const loadAssistantContext = async (
   supabase: SupabaseClient,
   userId: string,
+  householdId: string,
+  memberId: string,
 ) => {
   const { start, end, month } = monthBounds()
   const [profileResult, memoriesResult, tasksResult, shoppingResult, inventoryResult, financesResult, allFinancesResult] = await Promise.all([
     supabase.from('users').select('*').eq('id', userId).maybeSingle(),
     supabase
       .from('memories')
-      .select('key,value,category,importance')
-      .eq('user_id', userId)
+      .select('key,value,category,importance,scope')
+      .eq('household_id', householdId)
+      .or(`scope.eq.shared,and(scope.eq.personal,member_id.eq.${memberId})`)
       .order('importance', { ascending: false })
       .order('updated_at', { ascending: false })
       .limit(30),
     supabase
       .from('tasks')
       .select('id,title,description,status,priority,due_date')
-      .eq('user_id', userId)
+      .eq('household_id', householdId)
       .eq('status', 'pending')
       .order('due_date', { ascending: true, nullsFirst: false })
       .limit(15),
     supabase
       .from('shopping_items')
       .select('id,name,quantity,unit,category,purchased')
-      .eq('user_id', userId)
+      .eq('household_id', householdId)
       .eq('purchased', false)
       .order('created_at', { ascending: false })
       .limit(15),
     supabase
       .from('inventory')
       .select('id,name,quantity,unit,expiration_date,location')
-      .eq('user_id', userId)
+      .eq('household_id', householdId)
       .not('expiration_date', 'is', null)
       .lte('expiration_date', daysFromNowISO(14))
       .order('expiration_date', { ascending: true })
@@ -40,7 +43,7 @@ export const loadAssistantContext = async (
     supabase
       .from('finances')
       .select('type,amount,category,description,transaction_date')
-      .eq('user_id', userId)
+      .eq('household_id', householdId)
       .gte('transaction_date', start)
       .lt('transaction_date', end)
       .order('transaction_date', { ascending: false })
@@ -48,7 +51,7 @@ export const loadAssistantContext = async (
     supabase
       .from('finances')
       .select('type,amount')
-      .eq('user_id', userId),
+      .eq('household_id', householdId),
   ])
 
   const finances = (financesResult.data || []).reduce(

@@ -4,25 +4,25 @@ import { financeCreateSchema, financeUpdateSchema } from '../lib/schemas'
 import { assertNoDbError, HttpError } from '../lib/errors'
 import { cleanObject, escapeSearch, parseLimit } from '../lib/query'
 import { localDateISO, monthBounds } from '../lib/dates'
+import { requireCurrentMembership } from '../lib/household'
 
 export const financesRoutes = new Hono<AppEnv>()
 
 financesRoutes.get('/summary', async (c) => {
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, householdId } = await requireCurrentMembership(c)
   const { month, start, end } = monthBounds(c.req.query('month'))
 
   const [monthlyResult, allTimeResult] = await Promise.all([
     supabase
       .from('finances')
       .select('type,amount,category,transaction_date')
-      .eq('user_id', user.id)
+      .eq('household_id', householdId)
       .gte('transaction_date', start)
       .lt('transaction_date', end),
     supabase
       .from('finances')
       .select('type,amount')
-      .eq('user_id', user.id),
+      .eq('household_id', householdId),
   ])
   assertNoDbError(monthlyResult.error)
   assertNoDbError(allTimeResult.error)
@@ -47,8 +47,7 @@ financesRoutes.get('/summary', async (c) => {
 })
 
 financesRoutes.get('/', async (c) => {
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, householdId } = await requireCurrentMembership(c)
   const type = c.req.query('type')
   const month = c.req.query('month')
   const q = escapeSearch(c.req.query('q') || '')
@@ -57,7 +56,7 @@ financesRoutes.get('/', async (c) => {
   let query = supabase
     .from('finances')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('household_id', householdId)
     .order('transaction_date', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(limit)
@@ -76,15 +75,16 @@ financesRoutes.get('/', async (c) => {
 
 financesRoutes.post('/', async (c) => {
   const body = financeCreateSchema.parse(await c.req.json())
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, user, householdId, memberId } = await requireCurrentMembership(c)
   const { data: profile } = await supabase.from('users').select('timezone').eq('id', user.id).maybeSingle()
   const { data, error } = await supabase
     .from('finances')
     .insert({
       ...body,
       transaction_date: body.transaction_date || localDateISO(profile?.timezone || 'America/Santiago'),
+      household_id: householdId,
       user_id: user.id,
+      created_by_member_id: memberId,
     })
     .select()
     .single()
@@ -95,13 +95,12 @@ financesRoutes.post('/', async (c) => {
 financesRoutes.patch('/:id', async (c) => {
   const body = cleanObject(financeUpdateSchema.parse(await c.req.json()))
   if (!Object.keys(body).length) throw new HttpError(400, 'No hay cambios para guardar.')
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, householdId } = await requireCurrentMembership(c)
   const { data, error } = await supabase
     .from('finances')
     .update(body)
     .eq('id', c.req.param('id'))
-    .eq('user_id', user.id)
+    .eq('household_id', householdId)
     .select()
     .single()
   assertNoDbError(error)
@@ -109,13 +108,12 @@ financesRoutes.patch('/:id', async (c) => {
 })
 
 financesRoutes.delete('/:id', async (c) => {
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, householdId } = await requireCurrentMembership(c)
   const { error } = await supabase
     .from('finances')
     .delete()
     .eq('id', c.req.param('id'))
-    .eq('user_id', user.id)
+    .eq('household_id', householdId)
   assertNoDbError(error)
   return c.body(null, 204)
 })
