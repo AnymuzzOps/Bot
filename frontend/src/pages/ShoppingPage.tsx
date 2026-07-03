@@ -48,11 +48,11 @@ export function ShoppingPage() {
     setSaving(true)
     try {
       if (editing) {
-        const updated = await apiData<ShoppingItem>(`/api/shopping/${editing.id}`, { method: 'PATCH', body: { ...form, member_id: activeMember?.id } })
+        const updated = await apiData<ShoppingItem>(`/api/shopping/${editing.id}`, { method: 'PATCH', body: { ...form } })
         setItems((current) => current.map((item) => item.id === updated.id ? updated : item))
         showToast('Producto actualizado.')
       } else {
-        const created = await apiData<ShoppingItem>('/api/shopping', { method: 'POST', body: { ...form, member_id: activeMember?.id } })
+        const created = await apiData<ShoppingItem>('/api/shopping', { method: 'POST', body: { ...form } })
         setItems((current) => [created, ...current])
         showToast('Producto agregado.')
       }

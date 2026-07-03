@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useAuth } from './context/AuthContext'
-import { useActiveMember } from './context/ActiveMemberContext'
+import { useHousehold } from './context/HouseholdContext'
 import type { View } from './lib/types'
 import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -23,7 +23,7 @@ const readHash = (): View => {
 
 export function App() {
   const { user, loading } = useAuth()
-  const { members, activeMember, loading: memberLoading, needsSelection, selectInitialMember } = useActiveMember()
+  const { member, loading: householdLoading, error: householdError } = useHousehold()
   const [view, setView] = useState<View>(readHash)
 
   useEffect(() => {
@@ -37,34 +37,14 @@ export function App() {
     setView(next)
   }
 
-  if (loading || (user && memberLoading)) {
+  if (loading || (user && householdLoading)) {
     return <div className="boot-screen"><div className="brand-mark"><Sparkles size={24} /></div><span className="spinner" /><p>Cargando tu asistente…</p></div>
   }
 
   if (!user) return <AuthPage />
 
-  if (needsSelection) {
-    return (
-      <div className="member-select-page">
-        <section className="member-select-card">
-          <div className="brand-mark"><Sparkles size={24} /></div>
-          <span className="eyebrow">Cuenta compartida</span>
-          <h1>¿Quién está usando el asistente?</h1>
-          <p>Elige una vez en este dispositivo para personalizar la memoria y autoría.</p>
-          <div className="member-card-grid">
-            {members.map((member) => (
-              <button key={member.id} className="member-card-option" onClick={() => selectInitialMember(member)}>
-                <span className="member-avatar">{member.avatar || member.name.slice(0, 1)}</span>
-                <strong>{member.name}</strong>
-              </button>
-            ))}
-          </div>
-        </section>
-      </div>
-    )
-  }
 
-  if (!activeMember) return <div className="boot-screen"><span className="spinner" /><p>Preparando perfiles…</p></div>
+  if (!member) return <div className="boot-screen"><span className="spinner" /><p>{householdError || 'Preparando hogar compartido…'}</p></div>
 
   const page = {
     dashboard: <DashboardPage onNavigate={navigate} />,

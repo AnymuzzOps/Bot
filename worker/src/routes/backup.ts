@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { AppEnv } from '../types'
 import { assertNoDbError, HttpError } from '../lib/errors'
+import { requireCurrentMembership } from '../lib/household'
 
 const importSchema = z.object({
   mode: z.enum(['merge', 'replace']).default('merge'),
@@ -16,25 +17,25 @@ const importSchema = z.object({
   }),
 })
 
-const sanitizeRows = (rows: Record<string, unknown>[], userId: string) =>
-  rows.map(({ id: _id, user_id: _userId, created_at: _created, updated_at: _updated, created_by_member_id: _createdBy, member_id: _memberId, ...rest }) => ({
+const sanitizeRows = (rows: Record<string, unknown>[], userId: string, householdId: string) =>
+  rows.map(({ id: _id, user_id:_userId, household_id: _householdId, created_at: _created, updated_at: _updated, created_by_member_id: _createdBy, member_id: _memberId, ...rest }) => ({
     ...rest,
+    household_id: householdId,
     user_id: userId,
   }))
 
 export const backupRoutes = new Hono<AppEnv>()
 
 backupRoutes.get('/export', async (c) => {
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, user, householdId } = await requireCurrentMembership(c)
   const [profile, memories, conversations, tasks, shopping, inventory, finances] = await Promise.all([
     supabase.from('users').select('*').eq('id', user.id).maybeSingle(),
-    supabase.from('memories').select('*').eq('user_id', user.id),
-    supabase.from('conversations').select('*').eq('user_id', user.id),
-    supabase.from('tasks').select('*').eq('user_id', user.id),
-    supabase.from('shopping_items').select('*').eq('user_id', user.id),
-    supabase.from('inventory').select('*').eq('user_id', user.id),
-    supabase.from('finances').select('*').eq('user_id', user.id),
+    supabase.from('memories').select('*').eq('household_id', householdId),
+    supabase.from('conversations').select('*').eq('household_id', householdId),
+    supabase.from('tasks').select('*').eq('household_id', householdId),
+    supabase.from('shopping_items').select('*').eq('household_id', householdId),
+    supabase.from('inventory').select('*').eq('household_id', householdId),
+    supabase.from('finances').select('*').eq('household_id', householdId),
   ])
   for (const result of [profile, memories, conversations, tasks, shopping, inventory, finances]) assertNoDbError(result.error)
 
@@ -55,13 +56,12 @@ backupRoutes.get('/export', async (c) => {
 
 backupRoutes.post('/import', async (c) => {
   const parsed = importSchema.parse(await c.req.json())
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, user, householdId } = await requireCurrentMembership(c)
   const tables = ['conversations', 'tasks', 'shopping_items', 'inventory', 'finances', 'memories'] as const
 
   if (parsed.mode === 'replace') {
     for (const table of tables) {
-      const { error } = await supabase.from(table).delete().eq('user_id', user.id)
+      const { error } = await supabase.from(table).delete().eq('household_id', householdId)
       assertNoDbError(error)
     }
   }
@@ -77,7 +77,7 @@ backupRoutes.post('/import', async (c) => {
 
   const imported: Record<string, number> = {}
   for (const [table, rows] of mapping) {
-    const sanitized = sanitizeRows(rows, user.id).map((row) => (
+    const sanitized = sanitizeRows(rows, user.id, householdId).map((row) => (
       table === 'memories' ? { ...row, scope: 'shared' } : row
     ))
     if (!sanitized.length) {

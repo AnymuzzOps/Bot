@@ -1,0 +1,95 @@
+-- Manual one-time setup for joining two existing Supabase Auth users into one shared household.
+-- Replace BENJAMIN_EMAIL and JAVIERA_EMAIL with the real emails before running in Supabase SQL Editor.
+-- This script is idempotent and does not delete data.
+
+do $$
+declare
+  benjamin_email text := 'BENJAMIN_EMAIL';
+  javiera_email text := 'JAVIERA_EMAIL';
+  benjamin_user_id uuid;
+  javiera_user_id uuid;
+  target_household_id uuid;
+  benjamin_member_id uuid;
+  javiera_member_id uuid;
+begin
+  select id into benjamin_user_id from auth.users where email = benjamin_email limit 1;
+  select id into javiera_user_id from auth.users where email = javiera_email limit 1;
+
+  if benjamin_user_id is null then
+    raise exception 'No Supabase Auth user found for BENJAMIN_EMAIL';
+  end if;
+  if javiera_user_id is null then
+    raise exception 'No Supabase Auth user found for JAVIERA_EMAIL';
+  end if;
+
+  select hm1.household_id into target_household_id
+  from public.household_members hm1
+  join public.household_members hm2 on hm2.household_id = hm1.household_id
+  where hm1.auth_user_id = benjamin_user_id
+    and hm2.auth_user_id = javiera_user_id
+  limit 1;
+
+  if target_household_id is null then
+    insert into public.households (name)
+    values ('Hogar Benjamín y Javiera')
+    returning id into target_household_id;
+  end if;
+
+  insert into public.household_members (household_id, auth_user_id, user_id, name, slug, role)
+  values (target_household_id, benjamin_user_id, benjamin_user_id, 'Benjamín', 'benjamin', 'owner')
+  on conflict (household_id, auth_user_id) do update
+  set name = excluded.name,
+      slug = excluded.slug,
+      role = 'owner',
+      updated_at = now()
+  returning id into benjamin_member_id;
+
+  insert into public.household_members (household_id, auth_user_id, user_id, name, slug, role)
+  values (target_household_id, javiera_user_id, javiera_user_id, 'Javiera', 'javiera', 'member')
+  on conflict (household_id, auth_user_id) do update
+  set name = excluded.name,
+      slug = excluded.slug,
+      role = 'member',
+      updated_at = now()
+  returning id into javiera_member_id;
+
+  update public.tasks
+  set household_id = target_household_id,
+      created_by_member_id = case when user_id = benjamin_user_id then benjamin_member_id when user_id = javiera_user_id then javiera_member_id else created_by_member_id end,
+      assigned_to_member_id = case when assigned_to_member_id in (benjamin_member_id, javiera_member_id) then assigned_to_member_id else assigned_to_member_id end
+  where user_id in (benjamin_user_id, javiera_user_id);
+
+  update public.shopping_items
+  set household_id = target_household_id,
+      created_by_member_id = case when user_id = benjamin_user_id then benjamin_member_id when user_id = javiera_user_id then javiera_member_id else created_by_member_id end
+  where user_id in (benjamin_user_id, javiera_user_id);
+
+  update public.inventory
+  set household_id = target_household_id,
+      created_by_member_id = case when user_id = benjamin_user_id then benjamin_member_id when user_id = javiera_user_id then javiera_member_id else created_by_member_id end
+  where user_id in (benjamin_user_id, javiera_user_id);
+
+  update public.finances
+  set household_id = target_household_id,
+      created_by_member_id = case when user_id = benjamin_user_id then benjamin_member_id when user_id = javiera_user_id then javiera_member_id else created_by_member_id end
+  where user_id in (benjamin_user_id, javiera_user_id);
+
+  update public.conversations
+  set household_id = target_household_id,
+      created_by_member_id = case when user_id = benjamin_user_id then benjamin_member_id when user_id = javiera_user_id then javiera_member_id else created_by_member_id end
+  where user_id in (benjamin_user_id, javiera_user_id);
+
+  update public.memories
+  set household_id = target_household_id,
+      created_by_member_id = case when user_id = benjamin_user_id then benjamin_member_id when user_id = javiera_user_id then javiera_member_id else created_by_member_id end,
+      member_id = case
+        when scope = 'personal' and user_id = benjamin_user_id then benjamin_member_id
+        when scope = 'personal' and user_id = javiera_user_id then javiera_member_id
+        when scope = 'shared' then null
+        else member_id
+      end
+  where user_id in (benjamin_user_id, javiera_user_id);
+
+  raise notice 'Shared household configured: %', target_household_id;
+end;
+$$;

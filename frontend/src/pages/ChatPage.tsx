@@ -4,7 +4,7 @@ import { api, apiData } from '../lib/api'
 import type { Conversation } from '../lib/types'
 import { formatDate } from '../lib/format'
 import { useToast } from '../context/ToastContext'
-import { useActiveMember } from '../context/ActiveMemberContext'
+import { useHousehold } from '../context/HouseholdContext'
 import { Loading } from '../components/Loading'
 
 const suggestions = [
@@ -21,7 +21,7 @@ export function ChatPage() {
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const { showToast } = useToast()
-  const { activeMember } = useActiveMember()
+  const { member } = useHousehold()
 
   const load = async () => {
     try {
@@ -44,8 +44,8 @@ export function ChatPage() {
       role: 'user',
       content,
       created_at: new Date().toISOString(),
-      created_by_member_id: activeMember?.id || null,
-      created_by_member: activeMember,
+      created_by_member_id: member?.id || null,
+      created_by_member: member ? { ...member, avatar: member.avatar || null } : null,
     }
     setMessages((current) => [...current, optimistic])
     setInput('')

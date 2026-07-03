@@ -17,6 +17,7 @@ import { dashboardRoutes } from './routes/dashboard'
 import { searchRoutes } from './routes/search'
 import { backupRoutes } from './routes/backup'
 import { membersRoutes } from './routes/members'
+import { householdRoutes } from './routes/household'
 
 const app = new Hono<AppEnv>()
 
@@ -49,6 +50,7 @@ app.get('/', (c) => c.json({
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }))
 
 app.use('/api/*', requireAuth)
+app.route('/api/household', householdRoutes)
 app.route('/api/members', membersRoutes)
 app.route('/api/chat', chatRoutes)
 app.route('/api/tasks', tasksRoutes)

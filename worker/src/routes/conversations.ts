@@ -2,26 +2,29 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../types'
 import { assertNoDbError } from '../lib/errors'
 import { parseLimit } from '../lib/query'
-import { listHouseholdMembers } from '../lib/members'
+import { requireCurrentMembership } from '../lib/household'
 
 export const conversationsRoutes = new Hono<AppEnv>()
 
 conversationsRoutes.get('/', async (c) => {
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, householdId } = await requireCurrentMembership(c)
   const limit = parseLimit(c.req.query('limit'), 80, 200)
-  const [{ data, error }, members] = await Promise.all([
+  const [{ data, error }, membersResult] = await Promise.all([
     supabase
-    .from('conversations')
-    .select('*')
-    .eq('user_id', user.id)
-    .in('role', ['user', 'assistant'])
-    .order('created_at', { ascending: false })
-    .limit(limit),
-    listHouseholdMembers(supabase, user.id),
+      .from('conversations')
+      .select('*')
+      .eq('household_id', householdId)
+      .in('role', ['user', 'assistant'])
+      .order('created_at', { ascending: false })
+      .limit(limit),
+    supabase
+      .from('household_members')
+      .select('id,name,slug,role,avatar')
+      .eq('household_id', householdId),
   ])
   assertNoDbError(error)
-  const memberById = new Map(members.map((member) => [member.id, member]))
+  assertNoDbError(membersResult.error)
+  const memberById = new Map((membersResult.data || []).map((member) => [member.id, member]))
   return c.json({
     data: (data || []).reverse().map((item) => ({
       ...item,
@@ -31,9 +34,8 @@ conversationsRoutes.get('/', async (c) => {
 })
 
 conversationsRoutes.delete('/', async (c) => {
-  const supabase = c.get('supabase')
-  const user = c.get('user')
-  const { error } = await supabase.from('conversations').delete().eq('user_id', user.id)
+  const { supabase, householdId } = await requireCurrentMembership(c)
+  const { error } = await supabase.from('conversations').delete().eq('household_id', householdId)
   assertNoDbError(error)
   return c.body(null, 204)
 })

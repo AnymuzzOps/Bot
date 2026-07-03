@@ -20,6 +20,8 @@ export type AppEnv = {
 
 export type ToolExecutionContext = {
   userId: string
+  householdId: string
+  householdName: string
   memberId: string
   memberName: string
   supabase: SupabaseClient

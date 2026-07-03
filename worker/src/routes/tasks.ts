@@ -3,13 +3,12 @@ import type { AppEnv } from '../types'
 import { taskCreateSchema, taskUpdateSchema } from '../lib/schemas'
 import { assertNoDbError, HttpError } from '../lib/errors'
 import { cleanObject, escapeSearch, parseLimit } from '../lib/query'
-import { requireHouseholdMember } from '../lib/members'
+import { requireCurrentMembership, requireMemberInHousehold } from '../lib/household'
 
 export const tasksRoutes = new Hono<AppEnv>()
 
 tasksRoutes.get('/', async (c) => {
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, householdId } = await requireCurrentMembership(c)
   const status = c.req.query('status')
   const priority = c.req.query('priority')
   const q = escapeSearch(c.req.query('q') || '')
@@ -18,7 +17,7 @@ tasksRoutes.get('/', async (c) => {
   let query = supabase
     .from('tasks')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('household_id', householdId)
     .order('status', { ascending: false })
     .order('due_date', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false })
@@ -35,14 +34,17 @@ tasksRoutes.get('/', async (c) => {
 
 tasksRoutes.post('/', async (c) => {
   const body = taskCreateSchema.parse(await c.req.json())
-  const supabase = c.get('supabase')
-  const user = c.get('user')
-  const member = await requireHouseholdMember(supabase, user.id, body.member_id)
-  const { member_id: _memberId, ...task } = body
+  const { supabase, user, householdId, memberId } = await requireCurrentMembership(c)
+  const { assigned_to_member_id, ...task } = body
+  const assignedMember = assigned_to_member_id
+    ? await requireMemberInHousehold(supabase, householdId, assigned_to_member_id)
+    : null
   const payload = {
     ...task,
+    household_id: householdId,
     user_id: user.id,
-    created_by_member_id: member.id,
+    created_by_member_id: memberId,
+    assigned_to_member_id: assignedMember?.id || null,
     completed_at: body.status === 'completed' ? new Date().toISOString() : null,
   }
   const { data, error } = await supabase.from('tasks').insert(payload).select().single()
@@ -53,17 +55,14 @@ tasksRoutes.post('/', async (c) => {
 tasksRoutes.patch('/:id', async (c) => {
   const body = cleanObject(taskUpdateSchema.parse(await c.req.json()))
   if (!Object.keys(body).length) throw new HttpError(400, 'No hay cambios para guardar.')
-  const supabase = c.get('supabase')
-  const user = c.get('user')
-  let createdByMemberId: string | undefined
-  if (body.member_id) {
-    const member = await requireHouseholdMember(supabase, user.id, body.member_id)
-    createdByMemberId = member.id
-  }
-  const { member_id: _memberId, ...task } = body
+  const { supabase, householdId } = await requireCurrentMembership(c)
+  const { assigned_to_member_id, ...task } = body
+  const assignedMember = assigned_to_member_id
+    ? await requireMemberInHousehold(supabase, householdId, assigned_to_member_id)
+    : null
   const payload = {
     ...task,
-    ...(createdByMemberId ? { created_by_member_id: createdByMemberId } : {}),
+    ...(assigned_to_member_id !== undefined ? { assigned_to_member_id: assignedMember?.id || null } : {}),
     ...(body.status === 'completed' ? { completed_at: new Date().toISOString() } : {}),
     ...(body.status === 'pending' ? { completed_at: null } : {}),
   }
@@ -71,7 +70,7 @@ tasksRoutes.patch('/:id', async (c) => {
     .from('tasks')
     .update(payload)
     .eq('id', c.req.param('id'))
-    .eq('user_id', user.id)
+    .eq('household_id', householdId)
     .select()
     .single()
   assertNoDbError(error)
@@ -79,13 +78,12 @@ tasksRoutes.patch('/:id', async (c) => {
 })
 
 tasksRoutes.delete('/:id', async (c) => {
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, householdId } = await requireCurrentMembership(c)
   const { error } = await supabase
     .from('tasks')
     .delete()
     .eq('id', c.req.param('id'))
-    .eq('user_id', user.id)
+    .eq('household_id', householdId)
   assertNoDbError(error)
   return c.body(null, 204)
 })

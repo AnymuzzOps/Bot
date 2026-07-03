@@ -3,13 +3,12 @@ import type { AppEnv } from '../types'
 import { memoryCreateSchema, memoryUpdateSchema } from '../lib/schemas'
 import { assertNoDbError, HttpError } from '../lib/errors'
 import { cleanObject, escapeSearch, parseLimit } from '../lib/query'
-import { requireHouseholdMember } from '../lib/members'
+import { requireCurrentMembership } from '../lib/household'
 
 export const memoriesRoutes = new Hono<AppEnv>()
 
 memoriesRoutes.get('/', async (c) => {
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, householdId, memberId } = await requireCurrentMembership(c)
   const q = escapeSearch(c.req.query('q') || '')
   const category = c.req.query('category')
   const limit = parseLimit(c.req.query('limit'))
@@ -17,7 +16,8 @@ memoriesRoutes.get('/', async (c) => {
   let query = supabase
     .from('memories')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('household_id', householdId)
+    .or(`scope.eq.shared,and(scope.eq.personal,member_id.eq.${memberId})`)
     .order('importance', { ascending: false })
     .order('updated_at', { ascending: false })
     .limit(limit)
@@ -31,19 +31,17 @@ memoriesRoutes.get('/', async (c) => {
 
 memoriesRoutes.post('/', async (c) => {
   const body = memoryCreateSchema.parse(await c.req.json())
-  const supabase = c.get('supabase')
-  const user = c.get('user')
-  const member = await requireHouseholdMember(supabase, user.id, body.member_id)
-  const { member_id: _memberId, ...memory } = body
+  const { supabase, user, householdId, memberId } = await requireCurrentMembership(c)
   const payload = {
-    ...memory,
+    ...body,
+    household_id: householdId,
     user_id: user.id,
-    created_by_member_id: member.id,
-    member_id: memory.scope === 'personal' ? member.id : null,
+    created_by_member_id: memberId,
+    member_id: body.scope === 'personal' ? memberId : null,
   }
   const { data, error } = await supabase
     .from('memories')
-    .upsert(payload, { onConflict: 'user_id,key' })
+    .insert(payload)
     .select()
     .single()
   assertNoDbError(error)
@@ -53,28 +51,17 @@ memoriesRoutes.post('/', async (c) => {
 memoriesRoutes.patch('/:id', async (c) => {
   const body = cleanObject(memoryUpdateSchema.parse(await c.req.json()))
   if (!Object.keys(body).length) throw new HttpError(400, 'No hay cambios para guardar.')
-  const supabase = c.get('supabase')
-  const user = c.get('user')
-  let memberId: string | null | undefined
-  let createdByMemberId: string | undefined
-  if (body.member_id) {
-    const member = await requireHouseholdMember(supabase, user.id, body.member_id)
-    memberId = member.id
-    createdByMemberId = member.id
-  }
-  const { member_id: _memberId, ...memory } = body
+  const { supabase, householdId, memberId } = await requireCurrentMembership(c)
   const payload = {
-    ...memory,
-    ...(createdByMemberId ? { created_by_member_id: createdByMemberId } : {}),
-    ...(memory.scope === 'shared' ? { member_id: null } : {}),
-    ...(memory.scope === 'personal' && memberId ? { member_id: memberId } : {}),
+    ...body,
+    ...(body.scope === 'shared' ? { member_id: null } : {}),
+    ...(body.scope === 'personal' ? { member_id: memberId } : {}),
   }
-  if (memory.scope === 'personal' && !memberId) throw new HttpError(400, 'Debes seleccionar quién usará esta memoria personal.')
   const { data, error } = await supabase
     .from('memories')
     .update(payload)
     .eq('id', c.req.param('id'))
-    .eq('user_id', user.id)
+    .eq('household_id', householdId)
     .select()
     .single()
   assertNoDbError(error)
@@ -82,13 +69,12 @@ memoriesRoutes.patch('/:id', async (c) => {
 })
 
 memoriesRoutes.delete('/:id', async (c) => {
-  const supabase = c.get('supabase')
-  const user = c.get('user')
+  const { supabase, householdId } = await requireCurrentMembership(c)
   const { error } = await supabase
     .from('memories')
     .delete()
     .eq('id', c.req.param('id'))
-    .eq('user_id', user.id)
+    .eq('household_id', householdId)
   assertNoDbError(error)
   return c.body(null, 204)
 })

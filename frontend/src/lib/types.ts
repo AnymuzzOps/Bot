@@ -1,12 +1,24 @@
 export type View = 'dashboard' | 'chat' | 'tasks' | 'shopping' | 'inventory' | 'finances' | 'memory' | 'settings'
 
+export type Household = {
+  id: string
+  name: string
+}
+
 export type HouseholdMember = {
   id: string
-  user_id: string
+  household_id?: string
+  auth_user_id?: string
   name: string
-  slug: 'benjamin' | 'javiera'
+  slug: string
+  role?: 'owner' | 'member'
   avatar: string | null
-  created_at: string
+  created_at?: string
+}
+
+export type HouseholdMe = {
+  household: Household
+  member: Pick<HouseholdMember, 'id' | 'name' | 'slug' | 'role' | 'avatar'>
 }
 
 export type Profile = {
