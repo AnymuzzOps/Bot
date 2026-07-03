@@ -3,6 +3,7 @@ import { Brain, Edit3, Plus, Search, Star, Trash2 } from 'lucide-react'
 import { api, apiData } from '../lib/api'
 import type { Memory } from '../lib/types'
 import { useToast } from '../context/ToastContext'
+import { useActiveMember } from '../context/ActiveMemberContext'
 import { Modal } from '../components/Modal'
 import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
@@ -18,6 +19,7 @@ export function MemoryPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const { showToast } = useToast()
+  const { activeMember } = useActiveMember()
 
   useEffect(() => {
     apiData<Memory[]>('/api/memories?limit=200').then(setItems).catch((caught) => showToast(caught instanceof Error ? caught.message : 'No fue posible cargar la memoria.', 'error')).finally(() => setLoading(false))
@@ -34,10 +36,10 @@ export function MemoryPage() {
     event.preventDefault(); setSaving(true)
     try {
       if (editing) {
-        const updated = await apiData<Memory>(`/api/memories/${editing.id}`, { method: 'PATCH', body: form })
+        const updated = await apiData<Memory>(`/api/memories/${editing.id}`, { method: 'PATCH', body: { ...form, member_id: activeMember?.id } })
         setItems((current) => current.map((item) => item.id === updated.id ? updated : item)); showToast('Recuerdo actualizado.')
       } else {
-        const created = await apiData<Memory>('/api/memories', { method: 'POST', body: form })
+        const created = await apiData<Memory>('/api/memories', { method: 'POST', body: { ...form, member_id: activeMember?.id } })
         setItems((current) => [created, ...current.filter((item) => item.id !== created.id)]); showToast('Recuerdo guardado.')
       }
       setModalOpen(false)

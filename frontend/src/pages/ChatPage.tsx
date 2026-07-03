@@ -4,6 +4,7 @@ import { api, apiData } from '../lib/api'
 import type { Conversation } from '../lib/types'
 import { formatDate } from '../lib/format'
 import { useToast } from '../context/ToastContext'
+import { useActiveMember } from '../context/ActiveMemberContext'
 import { Loading } from '../components/Loading'
 
 const suggestions = [
@@ -20,6 +21,7 @@ export function ChatPage() {
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const { showToast } = useToast()
+  const { activeMember } = useActiveMember()
 
   const load = async () => {
     try {
@@ -42,6 +44,8 @@ export function ChatPage() {
       role: 'user',
       content,
       created_at: new Date().toISOString(),
+      created_by_member_id: activeMember?.id || null,
+      created_by_member: activeMember,
     }
     setMessages((current) => [...current, optimistic])
     setInput('')
@@ -50,7 +54,7 @@ export function ChatPage() {
     try {
       const response = await api<{ data: { message: Conversation; executed_tools: string[] } }>('/api/chat', {
         method: 'POST',
-        body: { message: content },
+        body: { message: content, member_id: activeMember?.id },
       })
       setMessages((current) => [...current.filter((item) => item.id !== optimistic.id), optimistic, response.data.message])
     } catch (caught) {
@@ -94,6 +98,7 @@ export function ChatPage() {
             <article className={`message ${message.role}`} key={message.id}>
               <div className="message-avatar">{message.role === 'assistant' ? <Bot size={19} /> : <UserRound size={19} />}</div>
               <div className="message-bubble">
+                {message.created_by_member && <span className="message-author">{message.created_by_member.name}</span>}
                 <p>{message.content}</p>
                 <time>{formatDate(message.created_at, true)}</time>
               </div>

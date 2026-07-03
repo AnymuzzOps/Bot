@@ -16,6 +16,7 @@ import { chatRoutes } from './routes/chat'
 import { dashboardRoutes } from './routes/dashboard'
 import { searchRoutes } from './routes/search'
 import { backupRoutes } from './routes/backup'
+import { membersRoutes } from './routes/members'
 
 const app = new Hono<AppEnv>()
 
@@ -48,6 +49,7 @@ app.get('/', (c) => c.json({
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }))
 
 app.use('/api/*', requireAuth)
+app.route('/api/members', membersRoutes)
 app.route('/api/chat', chatRoutes)
 app.route('/api/tasks', tasksRoutes)
 app.route('/api/shopping', shoppingRoutes)

@@ -20,6 +20,8 @@ export type AppEnv = {
 
 export type ToolExecutionContext = {
   userId: string
+  memberId: string
+  memberName: string
   supabase: SupabaseClient
   timezone: string
   currency: string
