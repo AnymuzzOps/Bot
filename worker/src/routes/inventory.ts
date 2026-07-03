@@ -52,7 +52,7 @@ inventoryRoutes.patch('/:id', async (c) => {
   const { supabase, householdId } = await requireCurrentMembership(c)
   const { data, error } = await supabase
     .from('inventory')
-    .update(body)
+    .update({ ...item, ...(createdByMemberId ? { created_by_member_id: createdByMemberId } : {}) })
     .eq('id', c.req.param('id'))
     .eq('household_id', householdId)
     .select()

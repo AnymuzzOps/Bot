@@ -4,6 +4,7 @@ import { api, apiData } from '../lib/api'
 import type { Finance, Profile } from '../lib/types'
 import { formatDate, formatMoney, todayISO } from '../lib/format'
 import { useToast } from '../context/ToastContext'
+import { useActiveMember } from '../context/ActiveMemberContext'
 import { Modal } from '../components/Modal'
 import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
@@ -27,6 +28,7 @@ export function FinancesPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const { showToast } = useToast()
+  const { activeMember } = useActiveMember()
 
   const load = async () => {
     setLoading(true)
@@ -55,7 +57,7 @@ export function FinancesPage() {
   const save = async (event: FormEvent) => {
     event.preventDefault(); setSaving(true)
     try {
-      const payload = { ...form, description: form.description || null }
+      const payload = { ...form, member_id: activeMember?.id, description: form.description || null }
       if (editing) {
         const updated = await apiData<Finance>(`/api/finances/${editing.id}`, { method: 'PATCH', body: payload })
         setItems((current) => current.map((item) => item.id === updated.id ? updated : item)); showToast('Movimiento actualizado.')
