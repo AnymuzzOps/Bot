@@ -21,7 +21,7 @@ export function ChatPage() {
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const { showToast } = useToast()
-  const { member: currentMember } = useHousehold()
+  const { member: householdMember } = useHousehold()
 
   const load = async () => {
     try {
@@ -39,13 +39,15 @@ export function ChatPage() {
     const content = (preset ?? input).trim()
     if (!content || sending) return
 
+    const chatAuthor = householdMember ? { ...householdMember, avatar: householdMember.avatar || null } : null
+
     const optimistic: Conversation = {
       id: `temp-${Date.now()}`,
       role: 'user',
       content,
       created_at: new Date().toISOString(),
-      created_by_member_id: currentMember?.id || null,
-      created_by_member: currentMember ? { ...currentMember, avatar: currentMember.avatar || null } : null,
+      created_by_member_id: chatAuthor?.id || null,
+      created_by_member: chatAuthor,
     }
     setMessages((current) => [...current, optimistic])
     setInput('')
