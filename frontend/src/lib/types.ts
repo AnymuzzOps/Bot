@@ -1,4 +1,4 @@
-export type View = 'dashboard' | 'chat' | 'tasks' | 'shopping' | 'inventory' | 'finances' | 'memory' | 'settings'
+export type View = 'dashboard' | 'chat' | 'tasks' | 'shopping' | 'inventory' | 'finances' | 'memory' | 'calendar' | 'settings'
 
 export type Household = {
   id: string
@@ -94,6 +94,24 @@ export type Memory = {
   member_id: string | null
   created_by_member_id: string | null
   created_by_member?: HouseholdMember | null
+}
+
+
+export type WorkShift = {
+  id: string
+  household_id: string
+  created_by_member_id: string | null
+  assigned_to_member_id: string | null
+  shift_date: string
+  shift_type: 'morning' | 'afternoon' | 'closing' | 'day_off' | 'custom'
+  label: string
+  start_time: string | null
+  end_time: string | null
+  color: string | null
+  notes: string | null
+  is_day_off: boolean
+  created_at: string
+  updated_at: string
 }
 
 export type Conversation = {

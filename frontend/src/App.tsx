@@ -11,10 +11,11 @@ import { ShoppingPage } from './pages/ShoppingPage'
 import { InventoryPage } from './pages/InventoryPage'
 import { FinancesPage } from './pages/FinancesPage'
 import { MemoryPage } from './pages/MemoryPage'
+import { CalendarPage } from './pages/CalendarPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { Layout } from './components/Layout'
 
-const validViews: View[] = ['dashboard', 'chat', 'tasks', 'shopping', 'inventory', 'finances', 'memory', 'settings']
+const validViews: View[] = ['dashboard', 'chat', 'tasks', 'shopping', 'inventory', 'finances', 'memory', 'calendar', 'settings']
 
 const readHash = (): View => {
   const value = window.location.hash.replace('#/', '') as View
@@ -54,6 +55,7 @@ export function App() {
     inventory: <InventoryPage />,
     finances: <FinancesPage />,
     memory: <MemoryPage />,
+    calendar: <CalendarPage />,
     settings: <SettingsPage />,
   }[view]
 

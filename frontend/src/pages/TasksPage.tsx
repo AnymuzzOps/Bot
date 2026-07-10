@@ -4,7 +4,6 @@ import { api, apiData } from '../lib/api'
 import type { Task } from '../lib/types'
 import { classNames, formatDate } from '../lib/format'
 import { useToast } from '../context/ToastContext'
-import { useActiveMember } from '../context/ActiveMemberContext'
 import { Modal } from '../components/Modal'
 import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
@@ -26,7 +25,6 @@ export function TasksPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const { showToast } = useToast()
-  const { activeMember } = useActiveMember()
 
   const load = async () => {
     setLoading(true)
@@ -71,7 +69,6 @@ export function TasksPage() {
     try {
       const payload = {
         ...form,
-        member_id: activeMember?.id,
         description: form.description || null,
         due_date: form.due_date ? new Date(form.due_date).toISOString() : null,
       }

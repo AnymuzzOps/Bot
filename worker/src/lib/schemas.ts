@@ -21,7 +21,6 @@ export const shoppingCreateSchema = z.object({
   unit: z.string().trim().max(50).default('unidad'),
   category: z.string().trim().max(100).default('General'),
   purchased: z.boolean().default(false),
-  member_id: memberId,
 })
 
 export const shoppingUpdateSchema = shoppingCreateSchema.partial()
@@ -35,7 +34,6 @@ export const inventoryCreateSchema = z.object({
   location: z.enum(['refrigerador', 'congelador', 'despensa', 'otro']).default('despensa'),
   category: z.string().trim().max(100).default('General'),
   notes: optionalText,
-  member_id: memberId,
 })
 
 export const inventoryUpdateSchema = inventoryCreateSchema.partial()
@@ -46,7 +44,6 @@ export const financeCreateSchema = z.object({
   category: z.string().trim().min(1).max(100),
   description: z.string().trim().max(500).optional().nullable(),
   transaction_date: z.string().trim().max(20).optional(),
-  member_id: memberId,
 })
 
 export const financeUpdateSchema = financeCreateSchema.partial()
