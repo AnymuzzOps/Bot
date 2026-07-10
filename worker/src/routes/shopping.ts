@@ -51,8 +51,7 @@ shoppingRoutes.patch('/:id', async (c) => {
   if (!Object.keys(body).length) throw new HttpError(400, 'No hay cambios para guardar.')
   const { supabase, householdId } = await requireCurrentMembership(c)
   const payload = {
-    ...item,
-    ...(createdByMemberId ? { created_by_member_id: createdByMemberId } : {}),
+    ...body,
     ...(body.purchased === true ? { purchased_at: new Date().toISOString() } : {}),
     ...(body.purchased === false ? { purchased_at: null } : {}),
   }
