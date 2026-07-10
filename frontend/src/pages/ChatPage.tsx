@@ -56,7 +56,7 @@ export function ChatPage() {
     try {
       const response = await api<{ data: { message: Conversation; executed_tools: string[] } }>('/api/chat', {
         method: 'POST',
-        body: { message: content, member_id: activeMember?.id },
+        body: { message: content },
       })
       setMessages((current) => [...current.filter((item) => item.id !== optimistic.id), optimistic, response.data.message])
     } catch (caught) {

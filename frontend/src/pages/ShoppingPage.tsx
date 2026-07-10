@@ -4,7 +4,6 @@ import { api, apiData } from '../lib/api'
 import type { ShoppingItem } from '../lib/types'
 import { classNames } from '../lib/format'
 import { useToast } from '../context/ToastContext'
-import { useActiveMember } from '../context/ActiveMemberContext'
 import { Modal } from '../components/Modal'
 import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
@@ -21,7 +20,6 @@ export function ShoppingPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const { showToast } = useToast()
-  const { activeMember } = useActiveMember()
 
   useEffect(() => {
     apiData<ShoppingItem[]>('/api/shopping?limit=200')

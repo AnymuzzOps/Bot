@@ -31,29 +31,40 @@ export const requireCurrentMembership = async (c: Context<AppEnv>): Promise<Curr
   const supabase = c.get('supabase')
   const user = c.get('user')
 
-  const { data, error } = await supabase
+  const { data: memberData, error: memberError } = await supabase
     .from('household_members')
-    .select('id,household_id,auth_user_id,name,slug,role,avatar,households(id,name)')
+    .select('id,household_id,auth_user_id,name,slug,role,avatar')
     .eq('auth_user_id', user.id)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()
 
-  assertNoDbError(error)
-  if (!data) throw new HttpError(403, 'Tu usuario aún no pertenece a un hogar compartido.')
+  assertNoDbError(memberError)
+  if (!memberData) throw new HttpError(403, 'Tu usuario aún no pertenece a un hogar compartido.')
+  if (!memberData.household_id) throw new HttpError(500, 'No fue posible resolver el hogar compartido del usuario.')
 
-  const householdData = data.households as CurrentHousehold | CurrentHousehold[] | null
-  const household = Array.isArray(householdData) ? householdData[0] : householdData
-  if (!household?.id) throw new HttpError(500, 'No fue posible resolver el hogar compartido del usuario.')
+  const { data: householdData, error: householdError } = await supabase
+    .from('households')
+    .select('id,name')
+    .eq('id', memberData.household_id)
+    .maybeSingle()
+
+  assertNoDbError(householdError)
+  if (!householdData?.id) throw new HttpError(500, 'No fue posible resolver el hogar compartido del usuario.')
+
+  const household = {
+    id: String(householdData.id),
+    name: String(householdData.name),
+  } satisfies CurrentHousehold
 
   const member = {
-    id: String(data.id),
-    household_id: String(data.household_id),
-    auth_user_id: String(data.auth_user_id),
-    name: String(data.name),
-    slug: String(data.slug),
-    role: data.role === 'owner' ? 'owner' : 'member',
-    avatar: data.avatar ? String(data.avatar) : null,
+    id: String(memberData.id),
+    household_id: String(memberData.household_id),
+    auth_user_id: String(memberData.auth_user_id),
+    name: String(memberData.name),
+    slug: String(memberData.slug),
+    role: memberData.role === 'owner' ? 'owner' : 'member',
+    avatar: memberData.avatar ? String(memberData.avatar) : null,
   } satisfies CurrentMember
 
   return {
