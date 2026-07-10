@@ -82,7 +82,7 @@ financesRoutes.post('/', async (c) => {
   const { data, error } = await supabase
     .from('finances')
     .insert({
-      ...finance,
+      ...body,
       transaction_date: body.transaction_date || localDateISO(profile?.timezone || 'America/Santiago'),
       household_id: householdId,
       user_id: user.id,
@@ -102,7 +102,7 @@ financesRoutes.patch('/:id', async (c) => {
   const selectedMember = member_id ? await requireMemberInHousehold(supabase, householdId, member_id) : null
   const { data, error } = await supabase
     .from('finances')
-    .update({ ...finance, ...(member_id !== undefined ? { created_by_member_id: selectedMember?.id || null } : {}) })
+    .update(body)
     .eq('id', c.req.param('id'))
     .eq('household_id', householdId)
     .select()

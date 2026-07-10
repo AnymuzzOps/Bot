@@ -56,7 +56,7 @@ inventoryRoutes.patch('/:id', async (c) => {
   const selectedMember = member_id ? await requireMemberInHousehold(supabase, householdId, member_id) : null
   const { data, error } = await supabase
     .from('inventory')
-    .update({ ...item, ...(member_id !== undefined ? { created_by_member_id: selectedMember?.id || null } : {}) })
+    .update(body)
     .eq('id', c.req.param('id'))
     .eq('household_id', householdId)
     .select()

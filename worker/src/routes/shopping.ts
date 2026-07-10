@@ -55,8 +55,7 @@ shoppingRoutes.patch('/:id', async (c) => {
   const { member_id, ...item } = body
   const selectedMember = member_id ? await requireMemberInHousehold(supabase, householdId, member_id) : null
   const payload = {
-    ...item,
-    ...(member_id !== undefined ? { created_by_member_id: selectedMember?.id || null } : {}),
+    ...body,
     ...(body.purchased === true ? { purchased_at: new Date().toISOString() } : {}),
     ...(body.purchased === false ? { purchased_at: null } : {}),
   }
