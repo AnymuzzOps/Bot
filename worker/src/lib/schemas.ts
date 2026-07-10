@@ -3,6 +3,7 @@ import { z } from 'zod'
 const optionalText = z.string().trim().max(2000).optional().nullable()
 const dateOrDateTime = z.string().trim().max(40).optional().nullable()
 const assignedMemberId = z.string().uuid().optional().nullable()
+const memberId = z.string().uuid().optional().nullable()
 
 export const taskCreateSchema = z.object({
   title: z.string().trim().min(1).max(240),
