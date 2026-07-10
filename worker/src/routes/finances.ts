@@ -4,7 +4,7 @@ import { financeCreateSchema, financeUpdateSchema } from '../lib/schemas'
 import { assertNoDbError, HttpError } from '../lib/errors'
 import { cleanObject, escapeSearch, parseLimit } from '../lib/query'
 import { localDateISO, monthBounds } from '../lib/dates'
-import { requireCurrentMembership } from '../lib/household'
+import { requireCurrentMembership, requireMemberInHousehold } from '../lib/household'
 
 export const financesRoutes = new Hono<AppEnv>()
 
@@ -76,6 +76,8 @@ financesRoutes.get('/', async (c) => {
 financesRoutes.post('/', async (c) => {
   const body = financeCreateSchema.parse(await c.req.json())
   const { supabase, user, householdId, memberId } = await requireCurrentMembership(c)
+  const { member_id, ...finance } = body
+  const selectedMember = member_id ? await requireMemberInHousehold(supabase, householdId, member_id) : null
   const { data: profile } = await supabase.from('users').select('timezone').eq('id', user.id).maybeSingle()
   const { data, error } = await supabase
     .from('finances')
@@ -84,7 +86,7 @@ financesRoutes.post('/', async (c) => {
       transaction_date: body.transaction_date || localDateISO(profile?.timezone || 'America/Santiago'),
       household_id: householdId,
       user_id: user.id,
-      created_by_member_id: memberId,
+      created_by_member_id: selectedMember?.id || memberId,
     })
     .select()
     .single()
@@ -96,6 +98,8 @@ financesRoutes.patch('/:id', async (c) => {
   const body = cleanObject(financeUpdateSchema.parse(await c.req.json()))
   if (!Object.keys(body).length) throw new HttpError(400, 'No hay cambios para guardar.')
   const { supabase, householdId } = await requireCurrentMembership(c)
+  const { member_id, ...finance } = body
+  const selectedMember = member_id ? await requireMemberInHousehold(supabase, householdId, member_id) : null
   const { data, error } = await supabase
     .from('finances')
     .update(body)
