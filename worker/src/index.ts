@@ -18,6 +18,7 @@ import { searchRoutes } from './routes/search'
 import { backupRoutes } from './routes/backup'
 import { membersRoutes } from './routes/members'
 import { householdRoutes } from './routes/household'
+import { calendarRoutes } from './routes/calendar'
 
 const app = new Hono<AppEnv>()
 
@@ -53,6 +54,7 @@ app.use('/api/*', requireAuth)
 app.route('/api/household', householdRoutes)
 app.route('/api/members', membersRoutes)
 app.route('/api/chat', chatRoutes)
+app.route('/api/calendar', calendarRoutes)
 app.route('/api/tasks', tasksRoutes)
 app.route('/api/shopping', shoppingRoutes)
 app.route('/api/inventory', inventoryRoutes)

@@ -17,6 +17,7 @@ import {
   Sun,
   X,
   Brain,
+  CalendarDays,
 } from 'lucide-react'
 import type { SearchResult, View } from '../lib/types'
 import { apiData } from '../lib/api'
@@ -33,6 +34,7 @@ const navigation: Array<{ id: View; label: string; icon: React.ReactNode }> = [
   { id: 'inventory', label: 'Inventario', icon: <PackageOpen size={20} /> },
   { id: 'finances', label: 'Dinero', icon: <CircleDollarSign size={20} /> },
   { id: 'memory', label: 'Memoria', icon: <Brain size={20} /> },
+  { id: 'calendar', label: 'Calendario', icon: <CalendarDays size={20} /> },
   { id: 'settings', label: 'Configuración', icon: <Settings size={20} /> },
 ]
 
@@ -44,6 +46,7 @@ const viewLabels: Record<View, string> = {
   inventory: 'Inventario de alimentos',
   finances: 'Control de dinero',
   memory: 'Memoria del asistente',
+  calendar: 'Calendario laboral',
   settings: 'Configuración',
 }
 
