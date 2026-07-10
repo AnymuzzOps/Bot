@@ -10,7 +10,6 @@ import { requireCurrentMembership } from '../lib/household'
 
 const chatSchema = z.object({
   message: z.string().trim().min(1).max(8000),
-  member_id: z.string().uuid(),
 })
 
 export const chatRoutes = new Hono<AppEnv>()

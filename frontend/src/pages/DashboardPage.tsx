@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, ArrowRight, CheckSquare2, CircleDollarSign, PackageOpen, ShoppingCart, Sparkles } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CalendarDays, CheckSquare2, CircleDollarSign, Clock, PackageOpen, ShoppingCart, Sparkles } from 'lucide-react'
 import { apiData } from '../lib/api'
-import type { DashboardData, View } from '../lib/types'
+import type { DashboardData, View, WorkShift } from '../lib/types'
 import { formatDate, formatMoney } from '../lib/format'
 import { Loading } from '../components/Loading'
 import { StatCard } from '../components/StatCard'
@@ -9,11 +9,22 @@ import { StatCard } from '../components/StatCard'
 export function DashboardPage({ onNavigate }: { onNavigate: (view: View) => void }) {
   const [data, setData] = useState<DashboardData | null>(null)
   const [error, setError] = useState('')
+  const [calendarItems, setCalendarItems] = useState<WorkShift[]>([])
 
   useEffect(() => {
     apiData<DashboardData>('/api/dashboard')
       .then(setData)
       .catch((caught) => setError(caught instanceof Error ? caught.message : 'No fue posible cargar el panel.'))
+
+    const now = new Date()
+    const currentMonth = now.toISOString().slice(0, 7)
+    const nextMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 1)).toISOString().slice(0, 7)
+    Promise.all([
+      apiData<WorkShift[]>(`/api/calendar?month=${currentMonth}`),
+      apiData<WorkShift[]>(`/api/calendar?month=${nextMonth}`),
+    ])
+      .then(([current, next]) => setCalendarItems([...current, ...next]))
+      .catch(() => setCalendarItems([]))
   }, [])
 
   if (!data && !error) return <Loading label="Preparando tu panel…" />
@@ -22,6 +33,10 @@ export function DashboardPage({ onNavigate }: { onNavigate: (view: View) => void
 
   const name = data.profile?.full_name?.split(' ')[0] || 'Hola'
   const currency = data.profile?.currency || 'CLP'
+  const today = new Date().toISOString().slice(0, 10)
+  const upcomingShifts = calendarItems.filter((item) => item.shift_date >= today).slice(0, 3)
+  const todayShift = calendarItems.find((item) => item.shift_date === today)
+  const nextDayOff = calendarItems.find((item) => item.shift_date >= today && item.is_day_off)
 
   return (
     <div className="page-stack">
@@ -86,6 +101,18 @@ export function DashboardPage({ onNavigate }: { onNavigate: (view: View) => void
             <div className="balance-line"><span>Balance del mes</span><strong>{formatMoney(data.finances.balance, currency)}</strong></div>
           </div>
         </article>
+      </section>
+
+      <section className="panel-card calendar-summary-card">
+        <div className="panel-header"><div><span>Calendario</span><h3>Horario laboral</h3></div><button className="text-button" onClick={() => onNavigate('calendar')}>Ver calendario</button></div>
+        <div className="calendar-summary-grid">
+          <div className="calendar-summary-tile"><CalendarDays size={18} /><span>Turno de hoy</span><strong>{todayShift ? todayShift.label : 'Sin turno'}</strong><p>{todayShift && !todayShift.is_day_off ? `${(todayShift.start_time || '').slice(0, 5)}–${(todayShift.end_time || '').slice(0, 5)}` : todayShift?.is_day_off ? 'Día libre' : 'No hay registros para hoy.'}</p></div>
+          <div className="calendar-summary-tile"><Clock size={18} /><span>Día libre próximo</span><strong>{nextDayOff ? formatDate(nextDayOff.shift_date) : 'Sin día libre'}</strong><p>{nextDayOff?.notes || 'Marca un día libre desde el calendario.'}</p></div>
+          <div className="calendar-summary-list">
+            <span>Próximos turnos</span>
+            {upcomingShifts.length ? upcomingShifts.map((shift) => <div key={shift.id}><strong>{shift.label}</strong><p>{formatDate(shift.shift_date)}{shift.is_day_off ? ' · Día libre' : ` · ${(shift.start_time || '').slice(0, 5)}–${(shift.end_time || '').slice(0, 5)}`}</p></div>) : <p className="muted">Aún no hay turnos próximos este mes.</p>}
+          </div>
+        </div>
       </section>
     </div>
   )
