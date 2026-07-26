@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { daysFromNowISO, monthBounds } from '../lib/dates'
+import { monthlyRecurringTotal } from '../lib/recurring'
 
 export const loadAssistantContext = async (
   supabase: SupabaseClient,
@@ -8,7 +9,7 @@ export const loadAssistantContext = async (
   memberId: string,
 ) => {
   const { start, end, month } = monthBounds()
-  const [profileResult, memoriesResult, tasksResult, shoppingResult, inventoryResult, financesResult, allFinancesResult] = await Promise.all([
+  const [profileResult, memoriesResult, tasksResult, shoppingResult, inventoryResult, financesResult, allFinancesResult, recurringResult] = await Promise.all([
     supabase.from('users').select('*').eq('id', userId).maybeSingle(),
     supabase
       .from('memories')
@@ -52,6 +53,7 @@ export const loadAssistantContext = async (
       .from('finances')
       .select('type,amount')
       .eq('household_id', householdId),
+    supabase.from('recurring_expenses').select('id,name,amount,currency,frequency,billing_day,next_billing_date,category,payment_method').eq('household_id', householdId).eq('is_active', true).order('next_billing_date', { ascending: true, nullsFirst: false }),
   ])
 
   const finances = (financesResult.data || []).reduce(
@@ -86,6 +88,9 @@ export const loadAssistantContext = async (
       expense: finances.expense,
       balance: finances.income - finances.expense,
       current_balance: currentBalance,
+      projected_recurring: monthlyRecurringTotal(recurringResult.data || []),
+      projected_balance: finances.income - finances.expense - monthlyRecurringTotal(recurringResult.data || []),
     },
+    recurring_expenses: recurringResult.data || [],
   }
 }
