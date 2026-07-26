@@ -2,8 +2,29 @@ import type { ToolExecutionContext } from '../types'
 import { localDateISO, monthBounds, daysFromNowISO } from '../lib/dates'
 import { HttpError, assertNoDbError } from '../lib/errors'
 import { escapeSearch } from '../lib/query'
+import { monthlyRecurringTotal, nextMonthlyBillingDate } from '../lib/recurring'
 
 export const assistantTools = [
+  {
+    type: 'function',
+    function: {
+      name: 'create_recurring_expense',
+      description: 'Crea una suscripción o compromiso recurrente; no registra un gasto ya pagado.',
+      parameters: { type: 'object', properties: {
+        name: { type: 'string' }, amount: { type: 'number' }, category: { type: 'string' },
+        frequency: { type: 'string', enum: ['daily', 'weekly', 'monthly', 'yearly', 'custom'] },
+        billing_day: { type: ['integer', 'null'], minimum: 1, maximum: 31 }, payment_method: { type: 'string' }, notes: { type: 'string' },
+      }, required: ['name', 'amount'] },
+    },
+  },
+  {
+    type: 'function',
+    function: { name: 'list_recurring_expenses', description: 'Lista suscripciones y calcula el gasto fijo mensual estimado.', parameters: { type: 'object', properties: { active: { type: 'boolean' } } } },
+  },
+  {
+    type: 'function',
+    function: { name: 'update_recurring_expense', description: 'Busca una suscripción por nombre para actualizarla o desactivarla.', parameters: { type: 'object', properties: { query: { type: 'string' }, name: { type: 'string' }, amount: { type: 'number' }, category: { type: 'string' }, frequency: { type: 'string', enum: ['daily', 'weekly', 'monthly', 'yearly', 'custom'] }, billing_day: { type: ['integer', 'null'] }, next_billing_date: { type: ['string', 'null'] }, is_active: { type: 'boolean' }, payment_method: { type: 'string' }, notes: { type: 'string' } }, required: ['query'] } },
+  },
   {
     type: 'function',
     function: {
@@ -382,12 +403,14 @@ export const executeAssistantTool = async (
     }
     case 'get_finance_summary': {
       const { month, start, end } = monthBounds(args.month ? String(args.month) : undefined)
-      const [monthlyResult, allTimeResult] = await Promise.all([
+      const [monthlyResult, allTimeResult, recurringResult] = await Promise.all([
         ctx.supabase.from('finances').select('type,amount,category').eq('household_id', ctx.householdId).gte('transaction_date', start).lt('transaction_date', end),
         ctx.supabase.from('finances').select('type,amount').eq('household_id', ctx.householdId),
+        ctx.supabase.from('recurring_expenses').select('amount,frequency').eq('household_id', ctx.householdId).eq('is_active', true),
       ])
       assertNoDbError(monthlyResult.error)
       assertNoDbError(allTimeResult.error)
+      assertNoDbError(recurringResult.error)
       const summary = (monthlyResult.data || []).reduce((acc, row) => {
         const amount = Number(row.amount)
         if (row.type === 'income') acc.income += amount
@@ -398,7 +421,30 @@ export const executeAssistantTool = async (
         (total, row) => total + (row.type === 'income' ? Number(row.amount) : -Number(row.amount)),
         0,
       )
-      return { month, ...summary, balance: summary.income - summary.expense, current_balance: currentBalance, currency: ctx.currency }
+      const projectedRecurring = monthlyRecurringTotal(recurringResult.data || [])
+      return { month, ...summary, balance: summary.income - summary.expense, current_balance: currentBalance, projected_recurring: projectedRecurring, projected_balance: summary.income - summary.expense - projectedRecurring, currency: ctx.currency }
+    }
+    case 'create_recurring_expense': {
+      const amount = Number(args.amount); const name = String(args.name || '').trim()
+      const frequency = ['daily', 'weekly', 'monthly', 'yearly', 'custom'].includes(String(args.frequency)) ? String(args.frequency) : 'monthly'
+      const billingDay = args.billing_day == null ? null : Number(args.billing_day)
+      if (!name || !Number.isFinite(amount) || amount < 0 || (billingDay !== null && (!Number.isInteger(billingDay) || billingDay < 1 || billingDay > 31))) throw new HttpError(400, 'La suscripción no es válida.')
+      const { data, error } = await ctx.supabase.from('recurring_expenses').insert({ household_id: ctx.householdId, created_by_member_id: ctx.memberId, name, amount, currency: ctx.currency, frequency, billing_day: billingDay, next_billing_date: frequency === 'monthly' && billingDay ? nextMonthlyBillingDate(billingDay) : null, category: String(args.category || 'suscripcion'), payment_method: args.payment_method || null, notes: args.notes || null }).select().single()
+      assertNoDbError(error); return data
+    }
+    case 'list_recurring_expenses': {
+      let query = ctx.supabase.from('recurring_expenses').select('*').eq('household_id', ctx.householdId).order('next_billing_date', { ascending: true, nullsFirst: false })
+      if (typeof args.active === 'boolean') query = query.eq('is_active', args.active)
+      const { data, error } = await query; assertNoDbError(error)
+      return { items: data || [], monthly_estimate: monthlyRecurringTotal((data || []).filter((item) => item.is_active)) }
+    }
+    case 'update_recurring_expense': {
+      const row = await findFirst(ctx, 'recurring_expenses', ['name', 'category'], String(args.query || ''))
+      const update: Record<string, unknown> = {}
+      for (const key of ['name', 'amount', 'category', 'frequency', 'billing_day', 'next_billing_date', 'is_active', 'payment_method', 'notes']) if (args[key] !== undefined) update[key] = args[key]
+      if (!Object.keys(update).length) throw new HttpError(400, 'No hay cambios para aplicar.')
+      const { data, error } = await ctx.supabase.from('recurring_expenses').update(update).eq('id', row.id).eq('household_id', ctx.householdId).select().single()
+      assertNoDbError(error); return data
     }
     case 'save_memory': {
       const payload = {

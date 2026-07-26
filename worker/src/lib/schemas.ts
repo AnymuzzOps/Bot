@@ -49,6 +49,26 @@ export const financeCreateSchema = z.object({
 
 export const financeUpdateSchema = financeCreateSchema.partial()
 
+const recurringFrequency = z.enum(['daily', 'weekly', 'monthly', 'yearly', 'custom'])
+export const recurringExpenseCreateSchema = z.object({
+  name: z.string().trim().min(1).max(240),
+  category: z.string().trim().min(1).max(100).default('suscripcion'),
+  amount: z.coerce.number().nonnegative(),
+  currency: z.string().trim().min(1).max(10).transform((value) => value.toUpperCase()).default('CLP'),
+  frequency: recurringFrequency.default('monthly'),
+  billing_day: z.coerce.number().int().min(1).max(31).optional().nullable(),
+  next_billing_date: z.string().date().optional().nullable(),
+  start_date: z.string().date().optional().nullable(),
+  end_date: z.string().date().optional().nullable(),
+  payment_method: z.string().trim().max(120).optional().nullable(),
+  notes: optionalText,
+  is_active: z.boolean().default(true),
+  auto_create_transaction: z.boolean().default(false),
+  assigned_to_member_id: assignedMemberId,
+})
+
+export const recurringExpenseUpdateSchema = recurringExpenseCreateSchema.partial()
+
 export const memoryCreateSchema = z.object({
   key: z.string().trim().min(1).max(160),
   value: z.string().trim().min(1).max(4000),

@@ -4,6 +4,7 @@ import type { AppEnv } from '../types'
 import { assertNoDbError, HttpError } from '../lib/errors'
 import { cleanObject } from '../lib/query'
 import { requireCurrentMembership, requireMemberInHousehold } from '../lib/household'
+import { currentYearMonth, monthBounds } from '../lib/dates'
 
 const shiftTypes = ['morning', 'afternoon', 'closing', 'day_off', 'custom'] as const
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -25,16 +26,6 @@ const shiftCreateSchema = z.object({
 const shiftUpdateSchema = shiftCreateSchema.partial()
 
 type ShiftPayload = z.infer<typeof shiftCreateSchema> | z.infer<typeof shiftUpdateSchema>
-
-const monthBounds = (month: string) => {
-  const [year, monthIndex] = month.split('-').map(Number)
-  const start = new Date(Date.UTC(year, monthIndex - 1, 1))
-  const end = new Date(Date.UTC(year, monthIndex, 1))
-  return {
-    start: start.toISOString().slice(0, 10),
-    end: end.toISOString().slice(0, 10),
-  }
-}
 
 const normalizeTime = (value: string | null | undefined) => value ? `${value}:00` : value
 
@@ -62,7 +53,7 @@ const normalizeShift = (payload: ShiftPayload) => {
 export const calendarRoutes = new Hono<AppEnv>()
 
 calendarRoutes.get('/', async (c) => {
-  const month = monthSchema.catch(new Date().toISOString().slice(0, 7)).parse(c.req.query('month'))
+  const month = monthSchema.catch(currentYearMonth()).parse(c.req.query('month'))
   const { start, end } = monthBounds(month)
   const { supabase, householdId } = await requireCurrentMembership(c)
 
