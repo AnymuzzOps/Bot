@@ -9,8 +9,9 @@ import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
 import { StatCard } from '../components/StatCard'
 import { RecurringExpenses } from '../components/RecurringExpenses'
+import { getChileCurrentYearMonth } from '../lib/dates'
 
-const currentMonth = () => new Date().toISOString().slice(0, 7)
+const currentMonth = getChileCurrentYearMonth
 const emptyForm = { type: 'expense' as Finance['type'], amount: 0, category: 'General', description: '', transaction_date: todayISO() }
 
 type Summary = { month: string; income: number; expense: number; balance: number; current_balance: number; projected_recurring: number; projected_balance: number; by_category: Record<string, number> }

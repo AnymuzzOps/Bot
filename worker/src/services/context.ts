@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { daysFromNowISO, monthBounds } from '../lib/dates'
+import { DEFAULT_TIMEZONE, daysFromNowISO, monthBounds } from '../lib/dates'
 import { monthlyRecurringTotal } from '../lib/recurring'
 
 export const loadAssistantContext = async (
@@ -72,12 +72,12 @@ export const loadAssistantContext = async (
   )
 
   return {
-    profile: profileResult.data || {
+    profile: { ...(profileResult.data || {
       full_name: null,
       timezone: 'America/Santiago',
       currency: 'CLP',
       preferences: {},
-    },
+    }), timezone: DEFAULT_TIMEZONE },
     memories: memoriesResult.data || [],
     pending_tasks: tasksResult.data || [],
     pending_shopping: shoppingResult.data || [],

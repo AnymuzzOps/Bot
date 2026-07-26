@@ -5,6 +5,7 @@ import type { DashboardData, View, WorkShift } from '../lib/types'
 import { formatDate, formatMoney } from '../lib/format'
 import { Loading } from '../components/Loading'
 import { StatCard } from '../components/StatCard'
+import { getChileCurrentYearMonth, getChileTodayISO, shiftYearMonth } from '../lib/dates'
 
 export function DashboardPage({ onNavigate }: { onNavigate: (view: View) => void }) {
   const [data, setData] = useState<DashboardData | null>(null)
@@ -16,9 +17,8 @@ export function DashboardPage({ onNavigate }: { onNavigate: (view: View) => void
       .then(setData)
       .catch((caught) => setError(caught instanceof Error ? caught.message : 'No fue posible cargar el panel.'))
 
-    const now = new Date()
-    const currentMonth = now.toISOString().slice(0, 7)
-    const nextMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 1)).toISOString().slice(0, 7)
+    const currentMonth = getChileCurrentYearMonth()
+    const nextMonth = shiftYearMonth(currentMonth, 1)
     Promise.all([
       apiData<WorkShift[]>(`/api/calendar?month=${currentMonth}`),
       apiData<WorkShift[]>(`/api/calendar?month=${nextMonth}`),
@@ -33,7 +33,7 @@ export function DashboardPage({ onNavigate }: { onNavigate: (view: View) => void
 
   const name = data.profile?.full_name?.split(' ')[0] || 'Hola'
   const currency = data.profile?.currency || 'CLP'
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getChileTodayISO()
   const upcomingShifts = calendarItems.filter((item) => item.shift_date >= today).slice(0, 3)
   const todayShift = calendarItems.find((item) => item.shift_date === today)
   const nextDayOff = calendarItems.find((item) => item.shift_date >= today && item.is_day_off)

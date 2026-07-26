@@ -1,3 +1,5 @@
+import { DEFAULT_TIMEZONE, currentYearMonth, localDateISO } from './dates'
+
 export type RecurringProjection = { amount: unknown; frequency: string }
 
 export const monthlyEquivalent = (item: RecurringProjection) => {
@@ -19,10 +21,11 @@ export const billingDateForMonth = (month: string, billingDay: number) => {
   return `${month}-${String(day).padStart(2, '0')}`
 }
 
-export const nextMonthlyBillingDate = (billingDay: number, from = new Date()) => {
-  const today = from.toISOString().slice(0, 10)
-  let year = from.getUTCFullYear()
-  let monthIndex = from.getUTCMonth()
+export const nextMonthlyBillingDate = (billingDay: number, from = new Date(), timezone = DEFAULT_TIMEZONE) => {
+  const today = localDateISO(timezone, from)
+  const [initialYear, initialMonth] = currentYearMonth(timezone, from).split('-').map(Number)
+  let year = initialYear
+  let monthIndex = initialMonth - 1
   let candidate = billingDateForMonth(`${year}-${String(monthIndex + 1).padStart(2, '0')}`, billingDay)
   if (candidate < today) {
     monthIndex += 1

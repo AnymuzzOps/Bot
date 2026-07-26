@@ -3,7 +3,7 @@ import type { AppEnv } from '../types'
 import { financeCreateSchema, financeUpdateSchema } from '../lib/schemas'
 import { assertNoDbError, HttpError } from '../lib/errors'
 import { cleanObject, escapeSearch, parseLimit } from '../lib/query'
-import { localDateISO, monthBounds } from '../lib/dates'
+import { DEFAULT_TIMEZONE, localDateISO, monthBounds } from '../lib/dates'
 import { requireCurrentMembership, requireMemberInHousehold } from '../lib/household'
 import { monthlyRecurringTotal } from '../lib/recurring'
 
@@ -82,12 +82,11 @@ financesRoutes.post('/', async (c) => {
   const { supabase, user, householdId, memberId } = await requireCurrentMembership(c)
   const { member_id, ...finance } = body
   const selectedMember = member_id ? await requireMemberInHousehold(supabase, householdId, member_id) : null
-  const { data: profile } = await supabase.from('users').select('timezone').eq('id', user.id).maybeSingle()
   const { data, error } = await supabase
     .from('finances')
     .insert({
       ...body,
-      transaction_date: body.transaction_date || localDateISO(profile?.timezone || 'America/Santiago'),
+      transaction_date: body.transaction_date || localDateISO(DEFAULT_TIMEZONE),
       household_id: householdId,
       user_id: user.id,
       created_by_member_id: selectedMember?.id || memberId,
