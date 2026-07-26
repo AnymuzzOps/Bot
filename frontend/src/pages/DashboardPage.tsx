@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, ArrowRight, CalendarDays, CheckSquare2, CircleDollarSign, Clock, PackageOpen, ShoppingCart, Sparkles } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CalendarClock, CalendarDays, CheckSquare2, CircleDollarSign, Clock, PackageOpen, ShoppingCart, Sparkles } from 'lucide-react'
 import { apiData } from '../lib/api'
 import type { DashboardData, View, WorkShift } from '../lib/types'
 import { formatDate, formatMoney } from '../lib/format'
@@ -57,6 +57,10 @@ export function DashboardPage({ onNavigate }: { onNavigate: (view: View) => void
       </section>
 
       <section className="dashboard-grid">
+        <article className="panel-card recurring-dashboard-card">
+          <div className="panel-header"><div><span>Dinero</span><h3><CalendarClock size={18}/> Gastos fijos</h3></div><button className="text-button" onClick={() => onNavigate('finances')}>Ver suscripciones</button></div>
+          <div className="money-summary"><div><span>Total mensual estimado</span><strong>{formatMoney(data.recurring_expenses.monthly_estimate, currency)}</strong></div><div><span>Suscripciones activas</span><strong>{data.recurring_expenses.active_count}</strong></div><div className="balance-line"><span>Próximo cobro</span><strong>{data.recurring_expenses.next ? `${data.recurring_expenses.next.name} · ${formatMoney(Number(data.recurring_expenses.next.amount), currency)}` : 'Sin cobros próximos'}</strong></div></div>
+        </article>
         <article className="panel-card">
           <div className="panel-header"><div><span>Prioridades</span><h3>Tareas pendientes</h3></div><button className="text-button" onClick={() => onNavigate('tasks')}>Ver todas</button></div>
           <div className="compact-list">
@@ -99,6 +103,8 @@ export function DashboardPage({ onNavigate }: { onNavigate: (view: View) => void
             <div><span>Ingresos</span><strong className="positive">{formatMoney(data.finances.income, currency)}</strong></div>
             <div><span>Gastos</span><strong className="negative">{formatMoney(data.finances.expense, currency)}</strong></div>
             <div className="balance-line"><span>Balance del mes</span><strong>{formatMoney(data.finances.balance, currency)}</strong></div>
+            <div><span>Gastos fijos proyectados</span><strong className="negative">−{formatMoney(data.finances.projected_recurring, currency)}</strong></div>
+            <div className="balance-line"><span>Balance proyectado</span><strong>{formatMoney(data.finances.projected_balance, currency)}</strong></div>
           </div>
         </article>
       </section>
