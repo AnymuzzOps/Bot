@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext'
 import { Modal } from '../components/Modal'
 import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
+import { chileDaysUntil } from '../lib/dates'
 
 const emptyForm = {
   name: '', quantity: 1, unit: 'unidad', purchase_date: todayISO(), expiration_date: '',
@@ -15,7 +16,7 @@ const emptyForm = {
 
 const expiryState = (date: string | null) => {
   if (!date) return null
-  const days = Math.ceil((new Date(`${date}T12:00:00`).getTime() - Date.now()) / 86400000)
+  const days = chileDaysUntil(date)
   if (days < 0) return { label: 'Vencido', className: 'danger' }
   if (days <= 7) return { label: `Vence en ${days} días`, className: 'warning' }
   return { label: formatDate(date), className: '' }
