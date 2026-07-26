@@ -3,6 +3,7 @@ import type { AppEnv } from '../types'
 import { daysFromNowISO, monthBounds } from '../lib/dates'
 import { assertNoDbError } from '../lib/errors'
 import { requireCurrentMembership } from '../lib/household'
+import { monthlyRecurringTotal } from '../lib/recurring'
 
 export const dashboardRoutes = new Hono<AppEnv>()
 
@@ -10,7 +11,7 @@ dashboardRoutes.get('/', async (c) => {
   const { supabase, user, householdId } = await requireCurrentMembership(c)
   const { start, end, month } = monthBounds()
 
-  const [profile, tasks, shopping, inventory, finances, allFinances, activity] = await Promise.all([
+  const [profile, tasks, shopping, inventory, finances, allFinances, activity, recurring] = await Promise.all([
     supabase.from('users').select('*').eq('id', user.id).maybeSingle(),
     supabase.from('tasks').select('*').eq('household_id', householdId).eq('status', 'pending').order('due_date', { ascending: true, nullsFirst: false }).limit(6),
     supabase.from('shopping_items').select('*').eq('household_id', householdId).eq('purchased', false).order('created_at', { ascending: false }).limit(6),
@@ -18,9 +19,10 @@ dashboardRoutes.get('/', async (c) => {
     supabase.from('finances').select('type,amount').eq('household_id', householdId).gte('transaction_date', start).lt('transaction_date', end),
     supabase.from('finances').select('type,amount').eq('household_id', householdId),
     supabase.from('conversations').select('id,role,content,created_at').eq('household_id', householdId).order('created_at', { ascending: false }).limit(5),
+    supabase.from('recurring_expenses').select('*').eq('household_id', householdId).eq('is_active', true).order('next_billing_date', { ascending: true, nullsFirst: false }),
   ])
 
-  for (const result of [profile, tasks, shopping, inventory, finances, allFinances, activity]) assertNoDbError(result.error)
+  for (const result of [profile, tasks, shopping, inventory, finances, allFinances, activity, recurring]) assertNoDbError(result.error)
 
   const totals = (finances.data || []).reduce((acc, row) => {
     const amount = Number(row.amount)
@@ -40,7 +42,8 @@ dashboardRoutes.get('/', async (c) => {
       pending_tasks: tasks.data || [],
       pending_shopping: shopping.data || [],
       expiring_inventory: inventory.data || [],
-      finances: { month, ...totals, balance: totals.income - totals.expense, current_balance: currentBalance },
+      finances: { month, ...totals, balance: totals.income - totals.expense, current_balance: currentBalance, projected_recurring: monthlyRecurringTotal(recurring.data || []), projected_balance: totals.income - totals.expense - monthlyRecurringTotal(recurring.data || []) },
+      recurring_expenses: { active_count: recurring.data?.length || 0, monthly_estimate: monthlyRecurringTotal(recurring.data || []), next: recurring.data?.[0] || null },
       recent_activity: activity.data || [],
     },
   })

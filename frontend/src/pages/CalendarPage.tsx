@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext'
 import { Modal } from '../components/Modal'
 import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
+import { getChileCurrentYearMonth, getChileTodayISO } from '../lib/dates'
 
 const weekDays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 const shortWeekDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
@@ -29,8 +30,12 @@ const emptyForm = {
   is_day_off: false,
 }
 
-const dateKey = (date: Date) => date.toISOString().slice(0, 10)
-const monthKey = (date: Date) => date.toISOString().slice(0, 7)
+const dateKey = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
+const monthKey = (date: Date) => dateKey(date).slice(0, 7)
+const monthDate = (month = getChileCurrentYearMonth()) => {
+  const [year, monthNumber] = month.split('-').map(Number)
+  return new Date(Date.UTC(year, monthNumber - 1, 1))
+}
 const monthTitle = (date: Date) => new Intl.DateTimeFormat('es', { month: 'long', year: 'numeric' }).format(date)
 const shiftTime = (value: string | null) => value ? value.slice(0, 5) : ''
 
@@ -70,7 +75,7 @@ function ShiftBadge({ shift }: { shift: WorkShift }) {
 }
 
 export function CalendarPage() {
-  const [month, setMonth] = useState(() => new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), 1)))
+  const [month, setMonth] = useState(monthDate)
   const [items, setItems] = useState<WorkShift[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -98,7 +103,7 @@ export function CalendarPage() {
   }, {}), [items])
 
   const weeks = useMemo(() => buildCalendar(month), [month])
-  const today = dateKey(new Date())
+  const today = getChileTodayISO()
 
   const setShiftType = (shift_type: WorkShift['shift_type']) => {
     const defaults = shiftDefaults[shift_type]
@@ -176,7 +181,7 @@ export function CalendarPage() {
     setMonth((current) => new Date(Date.UTC(current.getUTCFullYear(), current.getUTCMonth() + direction, 1)))
   }
 
-  const goToday = () => setMonth(new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), 1)))
+  const goToday = () => setMonth(monthDate())
 
   return (
     <div className="page-stack calendar-page">

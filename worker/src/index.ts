@@ -19,6 +19,7 @@ import { backupRoutes } from './routes/backup'
 import { membersRoutes } from './routes/members'
 import { householdRoutes } from './routes/household'
 import { calendarRoutes } from './routes/calendar'
+import { recurringExpensesRoutes } from './routes/recurringExpenses'
 
 const app = new Hono<AppEnv>()
 
@@ -59,6 +60,7 @@ app.route('/api/tasks', tasksRoutes)
 app.route('/api/shopping', shoppingRoutes)
 app.route('/api/inventory', inventoryRoutes)
 app.route('/api/finances', financesRoutes)
+app.route('/api/recurring-expenses', recurringExpensesRoutes)
 app.route('/api/memories', memoriesRoutes)
 app.route('/api/profile', profileRoutes)
 app.route('/api/conversations', conversationsRoutes)
