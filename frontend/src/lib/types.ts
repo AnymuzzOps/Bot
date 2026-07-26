@@ -82,6 +82,14 @@ export type Finance = {
   created_by_member?: HouseholdMember | null
 }
 
+export type RecurringExpense = {
+  id: string; name: string; category: string; amount: number; currency: string
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'
+  billing_day: number | null; next_billing_date: string | null; start_date: string | null; end_date: string | null
+  payment_method: string | null; notes: string | null; is_active: boolean; auto_create_transaction: boolean
+  monthly_equivalent?: number; projected_date?: string | null
+}
+
 export type Memory = {
   id: string
   key: string
@@ -129,7 +137,8 @@ export type DashboardData = {
   pending_tasks: Task[]
   pending_shopping: ShoppingItem[]
   expiring_inventory: InventoryItem[]
-  finances: { month: string; income: number; expense: number; balance: number; current_balance: number }
+  finances: { month: string; income: number; expense: number; balance: number; current_balance: number; projected_recurring: number; projected_balance: number }
+  recurring_expenses: { active_count: number; monthly_estimate: number; next: RecurringExpense | null }
   recent_activity: Conversation[]
 }
 

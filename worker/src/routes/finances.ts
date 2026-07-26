@@ -5,6 +5,7 @@ import { assertNoDbError, HttpError } from '../lib/errors'
 import { cleanObject, escapeSearch, parseLimit } from '../lib/query'
 import { localDateISO, monthBounds } from '../lib/dates'
 import { requireCurrentMembership, requireMemberInHousehold } from '../lib/household'
+import { monthlyRecurringTotal } from '../lib/recurring'
 
 export const financesRoutes = new Hono<AppEnv>()
 
@@ -12,7 +13,7 @@ financesRoutes.get('/summary', async (c) => {
   const { supabase, householdId } = await requireCurrentMembership(c)
   const { month, start, end } = monthBounds(c.req.query('month'))
 
-  const [monthlyResult, allTimeResult] = await Promise.all([
+  const [monthlyResult, allTimeResult, recurringResult] = await Promise.all([
     supabase
       .from('finances')
       .select('type,amount,category,transaction_date')
@@ -23,9 +24,11 @@ financesRoutes.get('/summary', async (c) => {
       .from('finances')
       .select('type,amount')
       .eq('household_id', householdId),
+    supabase.from('recurring_expenses').select('amount,frequency').eq('household_id', householdId).eq('is_active', true),
   ])
   assertNoDbError(monthlyResult.error)
   assertNoDbError(allTimeResult.error)
+  assertNoDbError(recurringResult.error)
 
   const summary = (monthlyResult.data || []).reduce(
     (acc, item) => {
@@ -43,7 +46,8 @@ financesRoutes.get('/summary', async (c) => {
     0,
   )
 
-  return c.json({ data: { month, ...summary, current_balance: currentBalance } })
+  const projectedRecurring = monthlyRecurringTotal(recurringResult.data || [])
+  return c.json({ data: { month, ...summary, current_balance: currentBalance, projected_recurring: projectedRecurring, projected_balance: summary.balance - projectedRecurring } })
 })
 
 financesRoutes.get('/', async (c) => {
