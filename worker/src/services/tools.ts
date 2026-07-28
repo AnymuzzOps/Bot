@@ -272,6 +272,24 @@ const numberWithDefault = (value: unknown, fallback: number) => {
   return Number.isFinite(number) ? number : fallback
 }
 
+const findRecentDuplicate = async (
+  ctx: ToolExecutionContext,
+  table: string,
+  fields: Record<string, string | number>,
+) => {
+  let query = ctx.supabase
+    .from(table)
+    .select('*')
+    .eq('household_id', ctx.householdId)
+    .gte('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+  for (const [field, value] of Object.entries(fields)) query = query.eq(field, value)
+  const { data, error } = await query.maybeSingle()
+  assertNoDbError(error)
+  return data ? { ...data, _tool_status: 'already_exists' } : null
+}
+
 export const executeAssistantTool = async (
   name: string,
   args: Record<string, unknown>,
@@ -290,6 +308,8 @@ export const executeAssistantTool = async (
         created_by_member_id: ctx.memberId,
       }
       if (!payload.title) throw new HttpError(400, 'La tarea necesita un título.')
+      const duplicate = await findRecentDuplicate(ctx, 'tasks', { title: payload.title })
+      if (duplicate) return duplicate
       const { data, error } = await ctx.supabase.from('tasks').insert(payload).select().single()
       assertNoDbError(error)
       return data
@@ -335,6 +355,8 @@ export const executeAssistantTool = async (
         created_by_member_id: ctx.memberId,
       }
       if (!payload.name || payload.quantity <= 0) throw new HttpError(400, 'El producto necesita un nombre y una cantidad válida.')
+      const duplicate = await findRecentDuplicate(ctx, 'shopping_items', { name: payload.name })
+      if (duplicate) return duplicate
       const { data, error } = await ctx.supabase.from('shopping_items').insert(payload).select().single()
       assertNoDbError(error)
       return data
@@ -375,6 +397,8 @@ export const executeAssistantTool = async (
         created_by_member_id: ctx.memberId,
       }
       if (!payload.name || payload.quantity < 0) throw new HttpError(400, 'El alimento necesita un nombre y una cantidad válida.')
+      const duplicate = await findRecentDuplicate(ctx, 'inventory', { name: payload.name })
+      if (duplicate) return duplicate
       const { data, error } = await ctx.supabase.from('inventory').insert(payload).select().single()
       assertNoDbError(error)
       return data
@@ -445,6 +469,8 @@ export const executeAssistantTool = async (
       const frequency = ['daily', 'weekly', 'monthly', 'yearly', 'custom'].includes(String(args.frequency)) ? String(args.frequency) : 'monthly'
       const billingDay = args.billing_day == null ? null : Number(args.billing_day)
       if (!name || !Number.isFinite(amount) || amount < 0 || (billingDay !== null && (!Number.isInteger(billingDay) || billingDay < 1 || billingDay > 31))) throw new HttpError(400, 'La suscripción no es válida.')
+      const duplicate = await findRecentDuplicate(ctx, 'recurring_expenses', { name })
+      if (duplicate) return duplicate
       const { data, error } = await ctx.supabase.from('recurring_expenses').insert({ household_id: ctx.householdId, created_by_member_id: ctx.memberId, name, amount, currency: ctx.currency, frequency, billing_day: billingDay, next_billing_date: frequency === 'monthly' && billingDay ? nextMonthlyBillingDate(billingDay) : null, category: textWithDefault(args.category, 'suscripcion'), payment_method: optionalText(args.payment_method), notes: optionalText(args.notes) }).select().single()
       assertNoDbError(error); return data
     }

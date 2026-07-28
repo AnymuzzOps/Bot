@@ -7,6 +7,7 @@ import { DEFAULT_TIMEZONE, localDateISO, localTime } from '../lib/dates'
 import { assistantTools, executeAssistantTool } from '../services/tools'
 import { loadAssistantContext } from '../services/context'
 import { requireCurrentMembership } from '../lib/household'
+import { buildToolExecutionSummary, type ExecutedTool } from '../lib/toolSummary'
 
 const chatSchema = z.object({
   message: z.string().trim().min(1).max(8000),
@@ -48,6 +49,10 @@ Reglas:
 5. Si hay ambigüedad material para modificar o eliminar algo, pregunta brevemente.
 6. Después de ejecutar acciones, confirma exactamente qué cambió.
 7. Los montos se guardan como números sin símbolos ni separadores de miles.
+8. La única instrucción activa es el último mensaje del usuario. No vuelvas a ejecutar órdenes antiguas del historial salvo que el usuario lo pida explícitamente.
+9. Si el usuario enumera varios elementos o acciones, procesa la lista completa, no solo los primeros. Puedes emitir múltiples tool calls en una respuesta.
+10. Si no puedes completar toda una lista, indica exactamente qué elementos faltaron y por qué.
+11. Después de usar herramientas, entrega un resumen concreto que detalle cada cambio. Nunca digas solamente que “procesaste la solicitud”.
 
 Contexto actual del usuario:
 ${JSON.stringify(context)}`
@@ -74,26 +79,40 @@ ${JSON.stringify(context)}`
   })
   assertNoDbError(userMessageError)
 
-  const executed: Array<{ name: string; result: unknown }> = []
+  const executed: ExecutedTool[] = []
+  const executedSignatures = new Set<string>()
   let finalText = ''
+  let usedDeterministicSummary = false
 
-  for (let iteration = 0; iteration < 5; iteration += 1) {
-    const completion = await createGroqCompletion(c.env, {
-      messages,
-      tools: assistantTools as unknown as unknown[],
-      tool_choice: 'auto',
-      temperature: 0.25,
-      max_completion_tokens: 1400,
-    })
+  for (let iteration = 0; iteration < 10; iteration += 1) {
+    let completion: Awaited<ReturnType<typeof createGroqCompletion>>
+    try {
+      completion = await createGroqCompletion(c.env, {
+        messages,
+        tools: assistantTools as unknown as unknown[],
+        tool_choice: 'auto',
+        temperature: 0.25,
+        max_completion_tokens: 2400,
+      })
+    } catch (error) {
+      if (!executed.length) throw error
+      console.warn('Assistant final completion failed after tools', { iteration: iteration + 1, toolCount: executed.length })
+      break
+    }
 
     const assistantMessage = completion.choices?.[0]?.message
-    if (!assistantMessage) throw new HttpError(502, 'Groq devolvió una respuesta vacía.')
+    if (!assistantMessage) {
+      if (executed.length) break
+      throw new HttpError(502, 'Groq devolvió una respuesta vacía.')
+    }
 
     messages.push(assistantMessage)
     const toolCalls = assistantMessage.tool_calls || []
+    console.log('Assistant tool iteration', { iteration: iteration + 1, toolCallCount: toolCalls.length, toolNames: toolCalls.map((call) => call.function.name) })
 
     if (!toolCalls.length) {
-      finalText = assistantMessage.content?.trim() || 'Listo.'
+      finalText = assistantMessage.content?.trim() || buildToolExecutionSummary(executed)
+      usedDeterministicSummary = !assistantMessage.content?.trim()
       break
     }
 
@@ -106,8 +125,10 @@ ${JSON.stringify(context)}`
       }
 
       let result: unknown
+      const signature = `${call.function.name}:${JSON.stringify(args, Object.keys(args).sort())}`
+      let duplicate = executedSignatures.has(signature)
       try {
-        result = await executeAssistantTool(call.function.name, args, {
+        result = duplicate ? { skipped: true, reason: 'duplicate_tool_call' } : await executeAssistantTool(call.function.name, args, {
           userId: user.id,
           householdId,
           householdName: household.name,
@@ -123,7 +144,10 @@ ${JSON.stringify(context)}`
         }
       }
 
-      executed.push({ name: call.function.name, result })
+      executedSignatures.add(signature)
+      duplicate = duplicate || Boolean(result && typeof result === 'object' && '_tool_status' in result && result._tool_status === 'already_exists')
+      const ok = !(result && typeof result === 'object' && 'error' in result)
+      executed.push({ name: call.function.name, args, result, ok, duplicate })
       messages.push({
         role: 'tool',
         tool_call_id: call.id,
@@ -134,10 +158,10 @@ ${JSON.stringify(context)}`
   }
 
   if (!finalText) {
-    finalText = executed.length
-      ? 'Procesé la solicitud, pero no pude generar el resumen final. Revisa los cambios realizados.'
-      : 'No pude completar la respuesta.'
+    finalText = buildToolExecutionSummary(executed)
+    usedDeterministicSummary = true
   }
+  console.log('Assistant request completed', { toolCount: executed.length, successfulToolCount: executed.filter((tool) => tool.ok).length, usedDeterministicSummary })
 
   const { data: saved, error: assistantMessageError } = await supabase
     .from('conversations')
