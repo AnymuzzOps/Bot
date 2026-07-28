@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext'
 import { Modal } from '../components/Modal'
 import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
+import { getChileCurrentYearMonth, getChileTodayISO, shiftYearMonth } from '../lib/dates'
 
 const weekDays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 const shortWeekDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
@@ -29,13 +30,18 @@ const emptyForm = {
   is_day_off: false,
 }
 
-const dateKey = (date: Date) => date.toISOString().slice(0, 10)
-const monthKey = (date: Date) => date.toISOString().slice(0, 7)
-const monthTitle = (date: Date) => new Intl.DateTimeFormat('es', { month: 'long', year: 'numeric' }).format(date)
+const dateKey = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
+const formatVisibleMonth = (visibleMonth: string) => {
+  const [year, monthNumber] = visibleMonth.split('-').map(Number)
+  const title = new Intl.DateTimeFormat('es-CL', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+    .format(new Date(Date.UTC(year, monthNumber - 1, 15, 12)))
+  return title.charAt(0).toUpperCase() + title.slice(1)
+}
 const shiftTime = (value: string | null) => value ? value.slice(0, 5) : ''
 
-const startOfCalendar = (month: Date) => {
-  const first = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), 1))
+const startOfCalendar = (visibleMonth: string) => {
+  const [year, monthNumber] = visibleMonth.split('-').map(Number)
+  const first = new Date(Date.UTC(year, monthNumber - 1, 1))
   const day = first.getUTCDay() || 7
   first.setUTCDate(first.getUTCDate() - (day - 1))
   return first
@@ -49,8 +55,8 @@ const weekNumber = (date: Date) => {
   return Math.ceil((((current.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
 }
 
-const buildCalendar = (month: Date) => {
-  const start = startOfCalendar(month)
+const buildCalendar = (visibleMonth: string) => {
+  const start = startOfCalendar(visibleMonth)
   return Array.from({ length: 6 }, (_, weekIndex) => Array.from({ length: 7 }, (_, dayIndex) => {
     const current = new Date(start)
     current.setUTCDate(start.getUTCDate() + weekIndex * 7 + dayIndex)
@@ -70,7 +76,7 @@ function ShiftBadge({ shift }: { shift: WorkShift }) {
 }
 
 export function CalendarPage() {
-  const [month, setMonth] = useState(() => new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), 1)))
+  const [visibleMonth, setVisibleMonth] = useState(() => getChileCurrentYearMonth())
   const [items, setItems] = useState<WorkShift[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -82,7 +88,7 @@ export function CalendarPage() {
   const load = async () => {
     setLoading(true)
     try {
-      setItems(await apiData<WorkShift[]>(`/api/calendar?month=${monthKey(month)}`))
+      setItems(await apiData<WorkShift[]>(`/api/calendar?month=${visibleMonth}`))
     } catch (caught) {
       showToast(caught instanceof Error ? caught.message : 'No fue posible cargar el calendario.', 'error')
     } finally {
@@ -90,15 +96,16 @@ export function CalendarPage() {
     }
   }
 
-  useEffect(() => { void load() }, [month])
+  useEffect(() => { void load() }, [visibleMonth])
 
   const shiftsByDate = useMemo(() => items.reduce<Record<string, WorkShift[]>>((acc, item) => {
     acc[item.shift_date] = [...(acc[item.shift_date] || []), item]
     return acc
   }, {}), [items])
 
-  const weeks = useMemo(() => buildCalendar(month), [month])
-  const today = dateKey(new Date())
+  const weeks = useMemo(() => buildCalendar(visibleMonth), [visibleMonth])
+  const today = getChileTodayISO()
+  const isCurrentMonth = visibleMonth === getChileCurrentYearMonth()
 
   const setShiftType = (shift_type: WorkShift['shift_type']) => {
     const defaults = shiftDefaults[shift_type]
@@ -172,11 +179,7 @@ export function CalendarPage() {
     showToast('Turno eliminado.')
   }
 
-  const moveMonth = (direction: number) => {
-    setMonth((current) => new Date(Date.UTC(current.getUTCFullYear(), current.getUTCMonth() + direction, 1)))
-  }
-
-  const goToday = () => setMonth(new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), 1)))
+  const goToday = () => setVisibleMonth(getChileCurrentYearMonth())
 
   return (
     <div className="page-stack calendar-page">
@@ -187,9 +190,9 @@ export function CalendarPage() {
 
       <section className="calendar-shell">
         <div className="calendar-month-header">
-          <button className="icon-button" onClick={() => moveMonth(-1)} aria-label="Mes anterior"><ChevronLeft size={20} /></button>
-          <div><span>Mes actual</span><h3>{monthTitle(month)}</h3></div>
-          <button className="icon-button" onClick={() => moveMonth(1)} aria-label="Mes siguiente"><ChevronRight size={20} /></button>
+          <button className="icon-button" onClick={() => setVisibleMonth((current) => shiftYearMonth(current, -1))} aria-label="Mes anterior"><ChevronLeft size={20} /></button>
+          <div><span>{isCurrentMonth ? 'Mes actual' : 'Mes visible'}</span><h3>{formatVisibleMonth(visibleMonth)}</h3></div>
+          <button className="icon-button" onClick={() => setVisibleMonth((current) => shiftYearMonth(current, 1))} aria-label="Mes siguiente"><ChevronRight size={20} /></button>
         </div>
 
         {loading ? <Loading /> : (
@@ -203,7 +206,7 @@ export function CalendarPage() {
                   {week.map((day) => {
                     const key = dateKey(day)
                     const dayShifts = shiftsByDate[key] || []
-                    const outside = day.getUTCMonth() !== month.getUTCMonth()
+                    const outside = key.slice(0, 7) !== visibleMonth
                     return (
                       <button className={`calendar-day ${outside ? 'outside' : ''} ${key === today ? 'today' : ''}`} key={key} onClick={() => dayShifts[0] ? openEdit(dayShifts[0]) : openCreate(key)}>
                         <span className="calendar-day-number">{day.getUTCDate()}</span>

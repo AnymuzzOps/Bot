@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext'
 import { Modal } from '../components/Modal'
 import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
+import { chileDateTimeToISO, formatChileDateTimeInput } from '../lib/dates'
 
 const emptyForm = {
   title: '',
@@ -58,7 +59,7 @@ export function TasksPage() {
       title: item.title,
       description: item.description || '',
       priority: item.priority,
-      due_date: item.due_date ? item.due_date.slice(0, 16) : '',
+      due_date: item.due_date ? formatChileDateTimeInput(item.due_date) : '',
     })
     setModalOpen(true)
   }
@@ -70,7 +71,7 @@ export function TasksPage() {
       const payload = {
         ...form,
         description: form.description || null,
-        due_date: form.due_date ? new Date(form.due_date).toISOString() : null,
+        due_date: form.due_date ? chileDateTimeToISO(form.due_date) : null,
       }
       if (editing) {
         const updated = await apiData<Task>(`/api/tasks/${editing.id}`, { method: 'PATCH', body: payload })

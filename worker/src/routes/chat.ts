@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { AppEnv, GroqMessage } from '../types'
 import { createGroqCompletion } from '../lib/groq'
 import { HttpError, assertNoDbError } from '../lib/errors'
-import { localDateISO } from '../lib/dates'
+import { DEFAULT_TIMEZONE, localDateISO, localTime } from '../lib/dates'
 import { assistantTools, executeAssistantTool } from '../services/tools'
 import { loadAssistantContext } from '../services/context'
 import { requireCurrentMembership } from '../lib/household'
@@ -30,13 +30,14 @@ chatRoutes.post('/', async (c) => {
   ])
   assertNoDbError(historyResult.error)
 
-  const timezone = context.profile.timezone || 'America/Santiago'
+  const timezone = DEFAULT_TIMEZONE
   const currency = context.profile.currency || 'CLP'
   const today = localDateISO(timezone)
+  const time = localTime(timezone)
   const name = context.profile.full_name || 'la persona usuaria'
 
   const systemPrompt = `Eres un asistente personal inteligente, confiable y breve. Responde en español natural.
-Fecha local actual: ${today}. Zona horaria: ${timezone}. Moneda: ${currency}. Cuenta autenticada: ${name}. Hogar compartido: ${household.name}. Persona autenticada: ${member.name}.
+Fecha local actual en Chile: ${today}. Hora local actual en Chile: ${time}. Zona horaria: ${timezone}. Moneda: ${currency}. Cuenta autenticada: ${name}. Hogar compartido: ${household.name}. Persona autenticada: ${member.name}.
 
 Puedes conversar y también ejecutar herramientas para administrar tareas, compras, inventario, finanzas y memoria. Los datos operativos son compartidos por los integrantes del hogar. Las memorias shared son del hogar; las memorias personal pertenecen solo a la persona autenticada y nunca debes revelar memorias personales de otra persona.
 Reglas:
