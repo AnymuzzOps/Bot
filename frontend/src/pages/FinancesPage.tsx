@@ -8,11 +8,13 @@ import { Modal } from '../components/Modal'
 import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
 import { StatCard } from '../components/StatCard'
+import { RecurringExpenses } from '../components/RecurringExpenses'
+import { getChileCurrentYearMonth } from '../lib/dates'
 
-const currentMonth = () => new Date().toISOString().slice(0, 7)
+const currentMonth = getChileCurrentYearMonth
 const emptyForm = { type: 'expense' as Finance['type'], amount: 0, category: 'General', description: '', transaction_date: todayISO() }
 
-type Summary = { month: string; income: number; expense: number; balance: number; current_balance: number; by_category: Record<string, number> }
+type Summary = { month: string; income: number; expense: number; balance: number; current_balance: number; projected_recurring: number; projected_balance: number; by_category: Record<string, number> }
 
 export function FinancesPage() {
   const [items, setItems] = useState<Finance[]>([])
@@ -83,6 +85,10 @@ export function FinancesPage() {
         <StatCard icon={<TrendingDown size={22} />} label="Gastos" value={formatMoney(summary?.expense || 0, currency)} />
         <StatCard icon={<WalletCards size={22} />} label="Saldo actual" value={formatMoney(summary?.current_balance || 0, currency)} />
       </section>
+
+      <section className="projection-strip"><div><span>Balance real del mes</span><strong>{formatMoney(summary?.balance || 0, currency)}</strong></div><div><span>Gastos fijos proyectados</span><strong className="negative">−{formatMoney(summary?.projected_recurring || 0, currency)}</strong></div><div><span>Balance proyectado</span><strong>{formatMoney(summary?.projected_balance || 0, currency)}</strong></div></section>
+
+      <RecurringExpenses month={month} currency={currency} onChanged={() => void load()} />
 
       <section className="toolbar-card"><div className="search-field"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar movimientos…" /></div><input className="compact-select" type="month" value={month} onChange={(event) => setMonth(event.target.value)} /><select className="compact-select" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)}><option value="all">Todos</option><option value="income">Ingresos</option><option value="expense">Gastos</option></select></section>
 

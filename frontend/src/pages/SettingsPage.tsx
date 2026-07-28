@@ -3,6 +3,7 @@ import { Download, Moon, Save, Upload, UserRound } from 'lucide-react'
 import { api, apiData } from '../lib/api'
 import type { Profile } from '../lib/types'
 import { useToast } from '../context/ToastContext'
+import { getChileTodayISO } from '../lib/dates'
 import { useTheme } from '../context/ThemeContext'
 import { Loading } from '../components/Loading'
 
@@ -20,7 +21,7 @@ export function SettingsPage() {
     apiData<Profile>('/api/profile')
       .then((data) => {
         setProfile(data)
-        setForm({ full_name: data.full_name || '', timezone: data.timezone, currency: data.currency })
+        setForm({ full_name: data.full_name || '', timezone: 'America/Santiago', currency: data.currency })
       })
       .catch((caught) => showToast(caught instanceof Error ? caught.message : 'No fue posible cargar el perfil.', 'error'))
       .finally(() => setLoading(false))
@@ -29,7 +30,7 @@ export function SettingsPage() {
   const save = async (event: FormEvent) => {
     event.preventDefault(); setSaving(true)
     try {
-      const updated = await apiData<Profile>('/api/profile', { method: 'PATCH', body: form })
+      const updated = await apiData<Profile>('/api/profile', { method: 'PATCH', body: { ...form, timezone: 'America/Santiago' } })
       setProfile(updated); showToast('Perfil actualizado.')
     } catch (caught) { showToast(caught instanceof Error ? caught.message : 'No fue posible guardar.', 'error') }
     finally { setSaving(false) }
@@ -42,7 +43,7 @@ export function SettingsPage() {
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
-      anchor.download = `asistente-respaldo-${new Date().toISOString().slice(0, 10)}.json`
+      anchor.download = `asistente-respaldo-${getChileTodayISO()}.json`
       anchor.click()
       URL.revokeObjectURL(url)
       showToast('Respaldo exportado.')
@@ -73,7 +74,7 @@ export function SettingsPage() {
           <form className="form-grid" onSubmit={save}>
             <label className="field full-span"><span>Nombre</span><input value={form.full_name} onChange={(event) => setForm({ ...form, full_name: event.target.value })} /></label>
             <label className="field full-span"><span>Correo</span><input value={profile?.email || ''} disabled /></label>
-            <label className="field"><span>Zona horaria</span><select value={form.timezone} onChange={(event) => setForm({ ...form, timezone: event.target.value })}><option value="America/Santiago">Chile continental</option><option value="America/Punta_Arenas">Magallanes</option><option value="America/New_York">Nueva York</option><option value="Europe/Madrid">Madrid</option><option value="UTC">UTC</option></select></label>
+            <label className="field"><span>Zona horaria</span><select value="America/Santiago" disabled><option value="America/Santiago">Chile continental (America/Santiago)</option></select></label>
             <label className="field"><span>Moneda</span><select value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value })}><option value="CLP">CLP</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="ARS">ARS</option><option value="BRL">BRL</option></select></label>
             <div className="form-actions full-span"><button className="button primary" disabled={saving}><Save size={17} /> {saving ? 'Guardando…' : 'Guardar perfil'}</button></div>
           </form>
